@@ -122,3 +122,24 @@ button {
 .memex-main__placeholder {
   color: var(--fg-muted);
 }
+
+.memex-main__error {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.08);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  margin: 0 0 1rem;
+}
+
+.memex-main__raw {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  background: var(--bg-elev);
+  padding: 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  color: var(--fg);
+}
