@@ -9,6 +9,7 @@ import { useUIStore } from "./stores/uiStore";
 export default function App(): JSX.Element {
   const activeFile = useVaultStore((s) => s.activeFile);
   const openFile = useVaultStore((s) => s.openFile);
+  const saveFile = useVaultStore((s) => s.saveFile);
   const error = useVaultStore((s) => s.error);
   const sidebarWidth = useUIStore((s) => s.sidebarWidth);
 
@@ -38,6 +39,7 @@ export default function App(): JSX.Element {
             <Editor
               docKey={activeFile.path}
               initialValue={activeFile.content}
+              onSave={(c) => void saveFile(activeFile.path, c)}
             />
           ) : (
             <p className="memex-main__placeholder">

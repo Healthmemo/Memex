@@ -13,6 +13,7 @@ export interface VaultState {
   error: string | null;
   openVault: (path: string) => Promise<void>;
   openFile: (path: string) => Promise<void>;
+  saveFile: (path: string, content: string) => Promise<void>;
   reset: () => void;
 }
 
@@ -46,6 +47,19 @@ export const useVaultStore = create<VaultState>((set) => ({
       set({ activeFile: file, isLoading: false });
     } catch (err) {
       set({ error: errorMessage(err), isLoading: false });
+    }
+  },
+
+  async saveFile(path, content) {
+    try {
+      await ipc.writeFile(path, content);
+      set((state) =>
+        state.activeFile?.path === path
+          ? { activeFile: { ...state.activeFile, content }, error: null }
+          : { error: null },
+      );
+    } catch (err) {
+      set({ error: errorMessage(err) });
     }
   },
 
