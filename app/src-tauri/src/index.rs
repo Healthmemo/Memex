@@ -1,0 +1,178 @@
+// Link graph builder. Walks every markdown file under the vault root, parses
+// `[[wikilinks]]`, resolves each target by stem against the file index, and
+// stores the resulting edges in a SQLite cache at `<vault>/.memex/cache.db`.
+//
+// The cache is rebuilt on every call. Future iterations may consult mtimes to
+// skip unchanged files, but the API always returns a fresh adjacency map.
+
+use crate::parser;
+use rusqlite::Connection;
+use serde::Serialize;
+use std::collections::{BTreeMap, HashMap};
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct Adjacency {
+    pub forward: BTreeMap<String, Vec<String>>,
+    pub backward: BTreeMap<String, Vec<String>>,
+    pub unresolved: BTreeMap<String, Vec<String>>,
+}
+
+pub fn build_link_graph(root: &str) -> Result<Adjacency, String> {
+    let root_path = Path::new(root)
+        .canonicalize()
+        .map_err(|e| format!("canonicalize failed for {root}: {e}"))?;
+    let files = collect_markdown(&root_path).map_err(|e| format!("walk failed: {e}"))?;
+    let stems = build_stem_index(&files);
+
+    let mut adj = Adjacency::default();
+    for file in &files {
+        let raw =
+            std::fs::read_to_string(file).map_err(|e| format!("read {file:?}: {e}"))?;
+        ingest_links(file, &raw, &stems, &mut adj);
+    }
+
+    let cache_dir = root_path.join(".memex");
+    std::fs::create_dir_all(&cache_dir)
+        .map_err(|e| format!("create cache dir failed: {e}"))?;
+    write_cache(&cache_dir.join("cache.db"), &adj)
+        .map_err(|e| format!("cache write failed: {e}"))?;
+
+    Ok(adj)
+}
+
+fn collect_markdown(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
+    let mut out = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for entry in std::fs::read_dir(&d)? {
+            let e = entry?;
+            if is_hidden_name(&e.file_name()) {
+                continue;
+            }
+            let p = e.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p.extension().and_then(|s| s.to_str()) == Some("md") {
+                out.push(p);
+            }
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
+fn is_hidden_name(name: &std::ffi::OsStr) -> bool {
+    name.to_str().is_some_and(|s| {
+        s.starts_with('.') || s == "node_modules" || s == "target"
+    })
+}
+
+fn build_stem_index(files: &[PathBuf]) -> HashMap<String, PathBuf> {
+    let mut idx = HashMap::with_capacity(files.len());
+    for f in files {
+        if let Some(stem) = f.file_stem().and_then(|s| s.to_str()) {
+            idx.insert(stem.to_lowercase(), f.clone());
+        }
+    }
+    idx
+}
+
+fn ingest_links(
+    file: &Path,
+    text: &str,
+    stems: &HashMap<String, PathBuf>,
+    adj: &mut Adjacency,
+) {
+    let source = file.to_string_lossy().into_owned();
+    for target in parser::parse_links_from_text(text) {
+        match stems.get(&target.to_lowercase()) {
+            Some(resolved) => {
+                let target_path = resolved.to_string_lossy().into_owned();
+                adj.forward
+                    .entry(source.clone())
+                    .or_default()
+                    .push(target_path.clone());
+                adj.backward
+                    .entry(target_path)
+                    .or_default()
+                    .push(source.clone());
+            }
+            None => {
+                adj.unresolved
+                    .entry(source.clone())
+                    .or_default()
+                    .push(target);
+            }
+        }
+    }
+}
+
+fn write_cache(db_path: &Path, adj: &Adjacency) -> rusqlite::Result<()> {
+    let conn = Connection::open(db_path)?;
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS links (
+            source TEXT NOT NULL,
+            target TEXT NOT NULL,
+            resolved INTEGER NOT NULL,
+            PRIMARY KEY (source, target, resolved)
+         );
+         DELETE FROM links;",
+    )?;
+    let mut stmt =
+        conn.prepare("INSERT OR IGNORE INTO links (source, target, resolved) VALUES (?, ?, ?)")?;
+    for (source, targets) in &adj.forward {
+        for target in targets {
+            stmt.execute((source.as_str(), target.as_str(), 1))?;
+        }
+    }
+    for (source, targets) in &adj.unresolved {
+        for target in targets {
+            stmt.execute((source.as_str(), target.as_str(), 0))?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+    use std::fs;
+
+    fn temp_vault(name: &str) -> PathBuf {
+        let dir = env::temp_dir().join(format!("memex-idx-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn resolves_links_by_stem() {
+        let dir = temp_vault("resolve");
+        fs::write(dir.join("a.md"), "see [[B]] for context").unwrap();
+        fs::write(dir.join("b.md"), "## B\n").unwrap();
+        let adj = build_link_graph(dir.to_str().unwrap()).unwrap();
+        assert_eq!(adj.forward.len(), 1);
+        assert_eq!(adj.backward.len(), 1);
+        assert!(adj.unresolved.is_empty());
+    }
+
+    #[test]
+    fn captures_unresolved_targets() {
+        let dir = temp_vault("unresolved");
+        fs::write(dir.join("a.md"), "see [[ghost]]").unwrap();
+        let adj = build_link_graph(dir.to_str().unwrap()).unwrap();
+        assert_eq!(adj.unresolved.len(), 1);
+        assert!(adj.forward.is_empty());
+    }
+
+    #[test]
+    fn writes_sqlite_cache() {
+        let dir = temp_vault("cache");
+        fs::write(dir.join("a.md"), "[[b]]").unwrap();
+        fs::write(dir.join("b.md"), "x").unwrap();
+        build_link_graph(dir.to_str().unwrap()).unwrap();
+        assert!(dir.join(".memex/cache.db").exists());
+    }
+}
