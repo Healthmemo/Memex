@@ -4,7 +4,7 @@ Mirror of PLAN.md step list. Update after every commit.
 Legend: `[ ]` todo · `[x]` done · `[B]` blocked (see BLOCKED.md)
 
 ## S1 — Scaffold
-- [ ] S1.1
+- [x] S1.1  verified: 2026-05-09 9379ea6
 - [ ] S1.2
 - [ ] S1.3
 - [ ] S1.4
