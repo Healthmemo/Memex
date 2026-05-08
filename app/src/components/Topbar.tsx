@@ -1,0 +1,83 @@
+// Topbar — breadcrumb + meta + language switch.
+
+import type { JSX } from "react";
+import { Icon } from "../lib/icons";
+import type { IconName } from "../lib/icons";
+import type { Lang, Strings } from "../lib/i18n";
+import { useUIStore } from "../stores/uiStore";
+import { useVaultStore } from "../stores/vaultStore";
+
+export default function Topbar({ t }: { t: Strings }): JSX.Element {
+  const route = useUIStore((s) => s.route);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const toggleCmd = useUIStore((s) => s.toggleCmd);
+  const lang = useUIStore((s) => s.lang);
+  const setLang = useUIStore((s) => s.setLang);
+  const currentVault = useVaultStore((s) => s.currentVault);
+
+  const projectName = currentVault?.name ?? t.app_name;
+  const { crumb, icon } = breadcrumbFor(route, projectName, t);
+
+  return (
+    <div className="topbar">
+      <button
+        className="icon-btn"
+        onClick={toggleSidebar}
+        title="Toggle sidebar (⌘B)"
+      >
+        <Icon name="sidebar" />
+      </button>
+      <div className="breadcrumb">
+        <Icon name={icon} size={14} />
+        {crumb.map((c, i) => (
+          <span key={i} style={{ display: "inline-flex", gap: 6 }}>
+            {i > 0 ? <span className="crumb-sep">/</span> : null}
+            {i === crumb.length - 1 ? <b>{c}</b> : <span>{c}</span>}
+          </span>
+        ))}
+      </div>
+      <div className="topbar-spacer" />
+      <button className="pill" onClick={toggleCmd}>
+        <Icon name="search" size={14} />
+        <span>{t.ph_search}</span>
+        <span className="kbd" style={{ marginLeft: 4 }}>
+          ⌘K
+        </span>
+      </button>
+      <span className="pill">
+        <span className="dot"></span>
+        <span>Synced</span>
+      </span>
+      <select
+        className="pill"
+        value={lang}
+        onChange={(e) => setLang(e.target.value as Lang)}
+        style={{ paddingRight: 18, cursor: "pointer", appearance: "none" }}
+      >
+        <option value="en">EN</option>
+        <option value="ko">한국어</option>
+        <option value="ja">日本語</option>
+      </select>
+    </div>
+  );
+}
+
+function breadcrumbFor(
+  route: string,
+  project: string,
+  t: Strings,
+): { crumb: string[]; icon: IconName } {
+  if (route === "overview") return { crumb: [project, t.nav_overview], icon: "home" };
+  if (route === "ingest") return { crumb: [project, t.nav_ingest], icon: "upload" };
+  if (route === "query") return { crumb: [project, t.nav_query], icon: "msg" };
+  if (route === "graph") return { crumb: [project, t.nav_graph], icon: "graph" };
+  if (route === "history") return { crumb: [project, t.nav_history], icon: "history" };
+  if (route === "provenance") return { crumb: [project, t.nav_provenance], icon: "quote" };
+  if (route === "settings") return { crumb: [t.nav_settings], icon: "settings" };
+  if (route.startsWith("page:")) {
+    const path = route.slice(5);
+    const name = path.split(/[\\/]/).pop() ?? path;
+    return { crumb: [project, name], icon: "page" };
+  }
+  return { crumb: [project], icon: "home" };
+}

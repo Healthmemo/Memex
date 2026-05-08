@@ -1,54 +1,83 @@
+import { useEffect, useMemo } from "react";
 import type { JSX } from "react";
-import { useEffect, useRef, useState } from "react";
 import Sidebar from "./components/Sidebar";
-import Splitter from "./components/Splitter";
-import Editor from "./components/Editor";
-import Viewer from "./components/Viewer";
-import BacklinksPanel from "./components/BacklinksPanel";
-import GraphView from "./components/GraphView";
-import ModeToggle from "./components/ModeToggle";
-import { getLastVaultPath, useVaultStore } from "./stores/vaultStore";
-import { useUIStore } from "./stores/uiStore";
-import { ipc } from "./lib/ipc";
+import Topbar from "./components/Topbar";
+import CommandBar from "./components/CommandBar";
 import DialogHost from "./components/DialogHost";
-import SettingsPanel from "./components/SettingsPanel";
-
-const AUTOSAVE_MS = 2000;
+import PageOverview from "./pages/PageOverview";
+import PageIngest from "./pages/PageIngest";
+import PageQuery from "./pages/PageQuery";
+import PageGraph from "./pages/PageGraph";
+import PageHistory from "./pages/PageHistory";
+import PageProvenance from "./pages/PageProvenance";
+import PageSettings from "./pages/PageSettings";
+import PageReader from "./pages/PageReader";
+import { STRINGS } from "./lib/i18n";
+import { useUIStore } from "./stores/uiStore";
+import { getLastVaultPath, useVaultStore } from "./stores/vaultStore";
+import { ipc } from "./lib/ipc";
 
 export default function App(): JSX.Element {
-  const activeFile = useVaultStore((s) => s.activeFile);
-  const openFile = useVaultStore((s) => s.openFile);
-  const openVault = useVaultStore((s) => s.openVault);
-  const saveFile = useVaultStore((s) => s.saveFile);
-  const resolveWikilink = useVaultStore((s) => s.resolveWikilink);
+  const route = useUIStore((s) => s.route);
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  const lang = useUIStore((s) => s.lang);
+  const theme = useUIStore((s) => s.theme);
+  const density = useUIStore((s) => s.density);
+  const accent = useUIStore((s) => s.accent);
+  const toggleCmd = useUIStore((s) => s.toggleCmd);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const currentVault = useVaultStore((s) => s.currentVault);
-  const error = useVaultStore((s) => s.error);
-  const sidebarWidth = useUIStore((s) => s.sidebarWidth);
-  const viewMode = useUIStore((s) => s.viewMode);
-  const topView = useUIStore((s) => s.topView);
-  const setTopView = useUIStore((s) => s.setTopView);
-  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
+  const openVault = useVaultStore((s) => s.openVault);
 
-  const [draftContent, setDraftContent] = useState<string>("");
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const t = STRINGS[lang] ?? STRINGS.en;
 
-  useEffect(() => {
-    setDraftContent(activeFile?.content ?? "");
-  }, [activeFile?.path, activeFile?.content]);
+  const sysDark = useMemo(
+    () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false,
+    [],
+  );
+  const effectiveTheme = theme === "system" ? (sysDark ? "dark" : "light") : theme;
 
   useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--memex-sidebar-width",
-      `${sidebarWidth}px`,
-    );
-  }, [sidebarWidth]);
+    document.documentElement.setAttribute("data-theme", effectiveTheme);
+  }, [effectiveTheme]);
 
   useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, []);
+    const r = document.documentElement;
+    if (density === "compact") {
+      r.style.setProperty("--top-h", "40px");
+      r.style.setProperty("--side-w", "240px");
+      document.body.style.fontSize = "13px";
+    } else if (density === "spacious") {
+      r.style.setProperty("--top-h", "52px");
+      r.style.setProperty("--side-w", "280px");
+      document.body.style.fontSize = "15px";
+    } else {
+      r.style.setProperty("--top-h", "44px");
+      r.style.setProperty("--side-w", "264px");
+      document.body.style.fontSize = "14px";
+    }
+  }, [density]);
 
+  useEffect(() => {
+    document.documentElement.style.setProperty("--accent", accent);
+  }, [accent]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        toggleCmd();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleCmd, toggleSidebar]);
+
+  // Auto-restore or create default vault on first mount.
   useEffect(() => {
     if (currentVault) return;
     const last = getLastVaultPath();
@@ -56,115 +85,37 @@ export default function App(): JSX.Element {
       void openVault(last);
       return;
     }
-    // First launch: auto-create and open ~/Memex.
     void (async () => {
       try {
-        const path = await ipc.ensureDefaultVault();
-        await openVault(path);
+        const p = await ipc.ensureDefaultVault();
+        await openVault(p);
       } catch {
-        /* user can still pick manually */
+        /* user can pick manually */
       }
     })();
-    // We only auto-restore once at mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function scheduleSave(path: string, content: string) {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      void saveFile(path, content);
-    }, AUTOSAVE_MS);
-  }
-
-  function flushSave(path: string, content: string) {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    void saveFile(path, content);
-  }
+  let body: JSX.Element;
+  if (route === "overview") body = <PageOverview t={t} />;
+  else if (route === "ingest") body = <PageIngest t={t} />;
+  else if (route === "query") body = <PageQuery t={t} />;
+  else if (route === "graph") body = <PageGraph t={t} />;
+  else if (route === "history") body = <PageHistory t={t} />;
+  else if (route === "provenance") body = <PageProvenance t={t} />;
+  else if (route === "settings") body = <PageSettings t={t} />;
+  else if (route.startsWith("page:")) body = <PageReader t={t} pageRoute={route.slice(5)} />;
+  else body = <PageOverview t={t} />;
 
   return (
-    <div className="memex-layout">
-      <Sidebar onSelect={(p) => void openFile(p)} />
-      <Splitter />
-      <main className="memex-main">
-        <header className="memex-main__header">
-          <div className="memex-main__title">
-            <h1>{activeFile ? fileName(activeFile.path) : "Memex"}</h1>
-            {!activeFile ? (
-              <p className="memex-main__tagline">
-                Desktop wiki for plain markdown vaults.
-              </p>
-            ) : null}
-          </div>
-          <div className="memex-main__actions">
-            <button
-              type="button"
-              className={`memex-modes__btn${
-                topView === "graph" ? " memex-modes__btn--active" : ""
-              }`}
-              onClick={() =>
-                setTopView(topView === "graph" ? "editor" : "graph")
-              }
-            >
-              {topView === "graph" ? "Editor" : "Graph"}
-            </button>
-            {activeFile && topView === "editor" ? <ModeToggle /> : null}
-            <button
-              type="button"
-              className="memex-modes__btn"
-              title="Settings"
-              onClick={() => setSettingsOpen(true)}
-            >
-              ⚙
-            </button>
-          </div>
-        </header>
-        {error ? <p className="memex-main__error">{error}</p> : null}
-        {topView === "graph" ? (
-          <GraphView />
-        ) : (
-          <section className={`memex-main__body memex-main__body--${viewMode}`}>
-            {activeFile ? (
-              <>
-                {viewMode !== "preview" ? (
-                  <Editor
-                    docKey={activeFile.path}
-                    initialValue={activeFile.content}
-                    onChange={(c) => {
-                      setDraftContent(c);
-                      scheduleSave(activeFile.path, c);
-                    }}
-                    onSave={(c) => flushSave(activeFile.path, c)}
-                  />
-                ) : null}
-                {viewMode !== "source" ? (
-                  <Viewer
-                    content={draftContent}
-                    onLinkClick={(target) => {
-                      const resolved = resolveWikilink(target);
-                      if (resolved) void openFile(resolved);
-                    }}
-                  />
-                ) : null}
-              </>
-            ) : (
-              <p className="memex-main__placeholder">
-                Open a vault to begin editing.
-              </p>
-            )}
-          </section>
-        )}
-        {topView === "editor" ? <BacklinksPanel /> : null}
+    <div className={"app" + (sidebarCollapsed ? " sidebar-collapsed" : "")}>
+      <Sidebar t={t} />
+      <main>
+        <Topbar t={t} />
+        {body}
       </main>
+      <CommandBar t={t} />
       <DialogHost />
-      <SettingsPanel />
     </div>
   );
-}
-
-function fileName(path: string): string {
-  const parts = path.split(/[\\/]/);
-  return parts[parts.length - 1] || path;
 }
