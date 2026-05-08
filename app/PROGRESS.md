@@ -14,7 +14,7 @@ Legend: `[ ]` todo · `[x]` done · `[B]` blocked (see BLOCKED.md)
 - [x] S2.2  verified: 2026-05-09 d20d3c0
 - [x] S2.3  verified: 2026-05-09 f127bc6
 - [x] S2.4  verified: 2026-05-09 ee9eb42
-- [ ] S2.5
+- [x] S2.5  verified: 2026-05-09 256636b
 
 ## S3 — Sidebar tree
 - [ ] S3.1
