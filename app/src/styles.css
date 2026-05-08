@@ -153,6 +153,38 @@ button {
   color: var(--fg-muted);
 }
 
+.memex-main__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.memex-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.memex-editor .cm-editor {
+  flex: 1;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9rem;
+}
+
+.memex-editor .cm-content {
+  padding: 1rem 0;
+}
+
+.memex-editor .cm-focused {
+  outline: none;
+}
+
 .memex-main__error {
   color: #ff6b6b;
   background: rgba(255, 107, 107, 0.08);

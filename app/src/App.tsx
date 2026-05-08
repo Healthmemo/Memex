@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import Splitter from "./components/Splitter";
+import Editor from "./components/Editor";
 import { useVaultStore } from "./stores/vaultStore";
 import { useUIStore } from "./stores/uiStore";
 
@@ -32,11 +33,16 @@ export default function App(): JSX.Element {
           ) : null}
         </header>
         {error ? <p className="memex-main__error">{error}</p> : null}
-        <section className="memex-main__placeholder">
+        <section className="memex-main__body">
           {activeFile ? (
-            <pre className="memex-main__raw">{activeFile.content}</pre>
+            <Editor
+              docKey={activeFile.path}
+              initialValue={activeFile.content}
+            />
           ) : (
-            <p>Open a vault to begin editing.</p>
+            <p className="memex-main__placeholder">
+              Open a vault to begin editing.
+            </p>
           )}
         </section>
       </main>
