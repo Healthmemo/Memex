@@ -36,7 +36,7 @@ Legend: `[ ]` todo · `[x]` done · `[B]` blocked (see BLOCKED.md)
 
 ## S6 — Graph view
 - [x] S6.1  verified: 2026-05-09 c5f8b42
-- [ ] S6.2
+- [x] S6.2  verified: 2026-05-09 b02cbe6
 - [ ] S6.3
 - [ ] S6.4
 
