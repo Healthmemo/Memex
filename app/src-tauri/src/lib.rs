@@ -1,9 +1,13 @@
-// Memex application entry point. The Tauri builder is intentionally minimal at
-// scaffold stage; subsequent steps wire vault, parser and index modules into
-// the IPC surface.
+// Memex application entry point. The Tauri builder wires IPC commands and
+// plugins. Domain logic lives in dedicated modules and stays testable without
+// the Tauri runtime.
+
+mod commands;
+pub mod vault;
 
 pub fn run() {
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![commands::open_vault])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())
         .expect("error while running Memex");
