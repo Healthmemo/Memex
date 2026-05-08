@@ -10,7 +10,7 @@ Legend: `[ ]` todo · `[x]` done · `[B]` blocked (see BLOCKED.md)
 - [x] S1.4  verified: 2026-05-09 9b10935
 
 ## S2 — Vault IPC
-- [ ] S2.1
+- [x] S2.1  verified: 2026-05-09 f018e77
 - [ ] S2.2
 - [ ] S2.3
 - [ ] S2.4
