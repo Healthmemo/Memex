@@ -1,9 +1,9 @@
 // Sidebar renders the vault file tree. It is purely presentational: it reads
-// fileTree from the store and emits onSelect for leaf clicks; the container is
-// responsible for opening the file.
+// fileTree from the vault store and folder expansion state from the UI store.
 
 import type { JSX } from "react";
 import { useVaultStore } from "../stores/vaultStore";
+import { useUIStore } from "../stores/uiStore";
 import type { FileNode } from "../lib/ipc";
 
 export interface SidebarProps {
@@ -57,24 +57,50 @@ function NodeRow({
       </li>
     );
   }
+  return <DirectoryRow node={node} depth={depth} onSelect={onSelect} />;
+}
+
+function DirectoryRow({
+  node,
+  depth,
+  onSelect,
+}: {
+  node: Extract<FileNode, { kind: "directory" }>;
+  depth: number;
+  onSelect?: (path: string) => void;
+}): JSX.Element {
+  const expanded = useUIStore((s) => s.expandedFolders[node.path] ?? true);
+  const toggle = useUIStore((s) => s.toggleFolder);
+
   return (
-    <li role="treeitem" className="memex-sidebar__group">
-      <span
+    <li
+      role="treeitem"
+      aria-expanded={expanded}
+      className="memex-sidebar__group"
+    >
+      <button
+        type="button"
         className="memex-sidebar__dir"
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        onClick={() => toggle(node.path)}
       >
+        <span className="memex-sidebar__chevron" aria-hidden="true">
+          {expanded ? "▾" : "▸"}
+        </span>
         {node.name}
-      </span>
-      <ul role="group">
-        {node.children.map((child) => (
-          <NodeRow
-            key={child.path}
-            node={child}
-            depth={depth + 1}
-            onSelect={onSelect}
-          />
-        ))}
-      </ul>
+      </button>
+      {expanded ? (
+        <ul role="group">
+          {node.children.map((child) => (
+            <NodeRow
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              onSelect={onSelect}
+            />
+          ))}
+        </ul>
+      ) : null}
     </li>
   );
 }
