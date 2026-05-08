@@ -12,6 +12,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::open_vault,
+            commands::ensure_default_vault,
             commands::list_files,
             commands::read_file,
             commands::write_file,

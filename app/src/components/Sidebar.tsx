@@ -8,6 +8,7 @@ import { useVaultStore } from "../stores/vaultStore";
 import { useUIStore } from "../stores/uiStore";
 import { ipc } from "../lib/ipc";
 import type { FileNode } from "../lib/ipc";
+import { confirmAction, promptText } from "../stores/dialogStore";
 
 export interface SidebarProps {
   onSelect?: (path: string) => void;
@@ -194,42 +195,53 @@ function ContextMenu({
   }
 
   async function handleNewFile() {
-    const name = window.prompt("New file name (e.g. note.md)", "untitled.md");
-    if (!name) return;
-    await createFile(parentDir(), name);
     onClose();
+    const name = await promptText({
+      title: "New note",
+      message: "File name (must end with .md)",
+      defaultValue: "untitled.md",
+      placeholder: "note.md",
+    });
+    if (!name) return;
+    const finalName = name.endsWith(".md") ? name : `${name}.md`;
+    await createFile(parentDir(), finalName);
   }
 
   async function handleNewFolder() {
-    const name = window.prompt("New folder name");
+    onClose();
+    const name = await promptText({
+      title: "New folder",
+      message: "Folder name",
+      placeholder: "my-folder",
+    });
     if (!name) return;
     await createFolder(parentDir(), name);
-    onClose();
   }
 
   async function handleRename() {
     if (menu.target === "vault") return;
     const oldName = menu.target.name;
-    const newName = window.prompt("Rename to", oldName);
-    if (!newName || newName === oldName) {
-      onClose();
-      return;
-    }
-    await renamePath(menu.target.path, newName);
     onClose();
+    const newName = await promptText({
+      title: "Rename",
+      message: `Rename "${oldName}" to:`,
+      defaultValue: oldName,
+    });
+    if (!newName || newName === oldName) return;
+    await renamePath(menu.target.path, newName);
   }
 
   async function handleDelete() {
     if (menu.target === "vault") return;
-    const ok = window.confirm(
-      `Delete "${menu.target.name}"? This cannot be undone.`,
-    );
-    if (!ok) {
-      onClose();
-      return;
-    }
-    await deletePath(menu.target.path);
+    const target = menu.target;
     onClose();
+    const ok = await confirmAction({
+      title: `Delete ${target.kind === "directory" ? "folder" : "file"}?`,
+      message: `"${target.name}" will be permanently removed.`,
+      danger: true,
+    });
+    if (!ok) return;
+    await deletePath(target.path);
   }
 
   return (
@@ -274,15 +286,24 @@ function ContextMenu({
 
 function NewFileButton({ parentDir }: { parentDir: string }): JSX.Element {
   const createFile = useVaultStore((s) => s.createFile);
+  async function handle(e: MouseEvent) {
+    e.stopPropagation();
+    const name = await promptText({
+      title: "New note",
+      message: "File name (must end with .md)",
+      defaultValue: "untitled.md",
+      placeholder: "note.md",
+    });
+    if (!name) return;
+    const finalName = name.endsWith(".md") ? name : `${name}.md`;
+    await createFile(parentDir, finalName);
+  }
   return (
     <button
       type="button"
       className="memex-sidebar__icon"
       title="New note"
-      onClick={async () => {
-        const name = window.prompt("New file name (e.g. note.md)", "untitled.md");
-        if (name) await createFile(parentDir, name);
-      }}
+      onClick={(e) => void handle(e)}
     >
       +
     </button>
@@ -291,15 +312,22 @@ function NewFileButton({ parentDir }: { parentDir: string }): JSX.Element {
 
 function NewFolderButton({ parentDir }: { parentDir: string }): JSX.Element {
   const createFolder = useVaultStore((s) => s.createFolder);
+  async function handle(e: MouseEvent) {
+    e.stopPropagation();
+    const name = await promptText({
+      title: "New folder",
+      message: "Folder name",
+      placeholder: "my-folder",
+    });
+    if (!name) return;
+    await createFolder(parentDir, name);
+  }
   return (
     <button
       type="button"
       className="memex-sidebar__icon"
       title="New folder"
-      onClick={async () => {
-        const name = window.prompt("New folder name");
-        if (name) await createFolder(parentDir, name);
-      }}
+      onClick={(e) => void handle(e)}
     >
       +/
     </button>

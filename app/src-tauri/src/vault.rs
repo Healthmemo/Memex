@@ -25,6 +25,26 @@ pub enum FileNode {
     },
 }
 
+pub fn ensure_default_vault() -> Result<String, String> {
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .ok_or_else(|| "no home directory found".to_string())?;
+    let target = Path::new(&home).join("Memex");
+    if !target.exists() {
+        std::fs::create_dir_all(&target)
+            .map_err(|e| format!("failed to create default vault: {e}"))?;
+        let welcome = target.join("welcome.md");
+        let _ = std::fs::write(
+            &welcome,
+            "# Welcome to Memex\n\nThis is your default vault. \
+             Use the sidebar **+** buttons to create notes and folders, \
+             and the gear icon to switch to another vault.\n\n\
+             Try a `[[wikilink]]` to see the link graph populate.\n",
+        );
+    }
+    Ok(target.to_string_lossy().into_owned())
+}
+
 pub fn open_vault(path: &str) -> Result<VaultMeta, String> {
     if path.is_empty() {
         return Err("vault path is empty".into());

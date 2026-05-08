@@ -9,6 +9,9 @@ import GraphView from "./components/GraphView";
 import ModeToggle from "./components/ModeToggle";
 import { getLastVaultPath, useVaultStore } from "./stores/vaultStore";
 import { useUIStore } from "./stores/uiStore";
+import { ipc } from "./lib/ipc";
+import DialogHost from "./components/DialogHost";
+import SettingsPanel from "./components/SettingsPanel";
 
 const AUTOSAVE_MS = 2000;
 
@@ -24,6 +27,7 @@ export default function App(): JSX.Element {
   const viewMode = useUIStore((s) => s.viewMode);
   const topView = useUIStore((s) => s.topView);
   const setTopView = useUIStore((s) => s.setTopView);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
 
   const [draftContent, setDraftContent] = useState<string>("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -48,7 +52,19 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (currentVault) return;
     const last = getLastVaultPath();
-    if (last) void openVault(last);
+    if (last) {
+      void openVault(last);
+      return;
+    }
+    // First launch: auto-create and open ~/Memex.
+    void (async () => {
+      try {
+        const path = await ipc.ensureDefaultVault();
+        await openVault(path);
+      } catch {
+        /* user can still pick manually */
+      }
+    })();
     // We only auto-restore once at mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -95,6 +111,14 @@ export default function App(): JSX.Element {
               {topView === "graph" ? "Editor" : "Graph"}
             </button>
             {activeFile && topView === "editor" ? <ModeToggle /> : null}
+            <button
+              type="button"
+              className="memex-modes__btn"
+              title="Settings"
+              onClick={() => setSettingsOpen(true)}
+            >
+              ⚙
+            </button>
           </div>
         </header>
         {error ? <p className="memex-main__error">{error}</p> : null}
@@ -134,6 +158,8 @@ export default function App(): JSX.Element {
         )}
         {topView === "editor" ? <BacklinksPanel /> : null}
       </main>
+      <DialogHost />
+      <SettingsPanel />
     </div>
   );
 }

@@ -33,6 +33,7 @@ export interface Adjacency {
 
 export const ipc = {
   openVault: (path: string) => invoke<VaultMeta>("open_vault", { path }),
+  ensureDefaultVault: () => invoke<string>("ensure_default_vault"),
   listFiles: (root: string) => invoke<FileNode[]>("list_files", { root }),
   readFile: (path: string) => invoke<FileContent>("read_file", { path }),
   writeFile: (path: string, content: string) =>

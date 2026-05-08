@@ -12,6 +12,11 @@ pub fn open_vault(path: String) -> Result<VaultMeta, String> {
 }
 
 #[tauri::command]
+pub fn ensure_default_vault() -> Result<String, String> {
+    vault::ensure_default_vault()
+}
+
+#[tauri::command]
 pub fn list_files(root: String) -> Result<Vec<FileNode>, String> {
     vault::list_files(&root)
 }
