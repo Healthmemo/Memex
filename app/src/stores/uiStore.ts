@@ -9,12 +9,16 @@ export const SIDEBAR_MIN = 200;
 export const SIDEBAR_MAX = 600;
 export const SIDEBAR_DEFAULT = 280;
 
+export type ViewMode = "source" | "preview" | "split";
+
 export interface UIState {
   expandedFolders: Record<string, boolean>;
   sidebarWidth: number;
+  viewMode: ViewMode;
   toggleFolder: (path: string) => void;
   setFolder: (path: string, open: boolean) => void;
   setSidebarWidth: (width: number) => void;
+  setViewMode: (mode: ViewMode) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -22,6 +26,7 @@ export const useUIStore = create<UIState>()(
     (set) => ({
       expandedFolders: {},
       sidebarWidth: SIDEBAR_DEFAULT,
+      viewMode: "split",
       toggleFolder: (path) =>
         set((state) => ({
           expandedFolders: {
@@ -37,6 +42,7 @@ export const useUIStore = create<UIState>()(
         set({
           sidebarWidth: Math.min(Math.max(width, SIDEBAR_MIN), SIDEBAR_MAX),
         }),
+      setViewMode: (mode) => set({ viewMode: mode }),
     }),
     {
       name: "memex-ui",

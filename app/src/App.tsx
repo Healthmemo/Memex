@@ -1,10 +1,14 @@
 import type { JSX } from "react";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import Splitter from "./components/Splitter";
 import Editor from "./components/Editor";
+import Viewer from "./components/Viewer";
+import ModeToggle from "./components/ModeToggle";
 import { useVaultStore } from "./stores/vaultStore";
 import { useUIStore } from "./stores/uiStore";
+
+const AUTOSAVE_MS = 2000;
 
 export default function App(): JSX.Element {
   const activeFile = useVaultStore((s) => s.activeFile);
@@ -12,6 +16,14 @@ export default function App(): JSX.Element {
   const saveFile = useVaultStore((s) => s.saveFile);
   const error = useVaultStore((s) => s.error);
   const sidebarWidth = useUIStore((s) => s.sidebarWidth);
+  const viewMode = useUIStore((s) => s.viewMode);
+
+  const [draftContent, setDraftContent] = useState<string>("");
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setDraftContent(activeFile?.content ?? "");
+  }, [activeFile?.path, activeFile?.content]);
 
   useEffect(() => {
     document.documentElement.style.setProperty(
@@ -20,27 +32,68 @@ export default function App(): JSX.Element {
     );
   }, [sidebarWidth]);
 
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
+  function scheduleSave(path: string, content: string) {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      void saveFile(path, content);
+    }, AUTOSAVE_MS);
+  }
+
+  function flushSave(path: string, content: string) {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    void saveFile(path, content);
+  }
+
   return (
     <div className="memex-layout">
       <Sidebar onSelect={(p) => void openFile(p)} />
       <Splitter />
       <main className="memex-main">
         <header className="memex-main__header">
-          <h1>{activeFile ? fileName(activeFile.path) : "Memex"}</h1>
-          {!activeFile ? (
-            <p className="memex-main__tagline">
-              Desktop wiki for plain markdown vaults.
-            </p>
-          ) : null}
+          <div className="memex-main__title">
+            <h1>{activeFile ? fileName(activeFile.path) : "Memex"}</h1>
+            {!activeFile ? (
+              <p className="memex-main__tagline">
+                Desktop wiki for plain markdown vaults.
+              </p>
+            ) : null}
+          </div>
+          {activeFile ? <ModeToggle /> : null}
         </header>
         {error ? <p className="memex-main__error">{error}</p> : null}
-        <section className="memex-main__body">
+        <section className={`memex-main__body memex-main__body--${viewMode}`}>
           {activeFile ? (
-            <Editor
-              docKey={activeFile.path}
-              initialValue={activeFile.content}
-              onSave={(c) => void saveFile(activeFile.path, c)}
-            />
+            <>
+              {viewMode !== "preview" ? (
+                <Editor
+                  docKey={activeFile.path}
+                  initialValue={activeFile.content}
+                  onChange={(c) => {
+                    setDraftContent(c);
+                    scheduleSave(activeFile.path, c);
+                  }}
+                  onSave={(c) => flushSave(activeFile.path, c)}
+                />
+              ) : null}
+              {viewMode !== "source" ? (
+                <Viewer
+                  content={draftContent}
+                  onLinkClick={(target) => {
+                    // Wikilink resolution is implemented in S5.3.
+                    console.debug("wikilink target", target);
+                  }}
+                />
+              ) : null}
+            </>
           ) : (
             <p className="memex-main__placeholder">
               Open a vault to begin editing.

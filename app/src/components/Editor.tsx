@@ -1,7 +1,8 @@
 // Editor: CodeMirror 6 with markdown language, no line numbers, soft wrap.
 // The component is uncontrolled — it owns the EditorView lifecycle and emits
-// onSave for both Cmd/Ctrl-S and idle debounce. Parent passes initial value
-// via the docKey prop to remount when switching files.
+// onChange on every doc change and onSave when the user explicitly invokes
+// Cmd-S. Parent passes initial value via the docKey prop to remount when
+// switching files.
 
 import { useEffect, useRef } from "react";
 import type { JSX } from "react";
@@ -10,32 +11,27 @@ import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 
-const AUTOSAVE_DEBOUNCE_MS = 2000;
-
 export interface EditorProps {
   docKey: string;
   initialValue: string;
+  onChange?: (value: string) => void;
   onSave?: (value: string) => void;
 }
 
 export default function Editor({
   docKey,
   initialValue,
+  onChange,
   onSave,
 }: EditorProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
+  onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
   useEffect(() => {
     if (!containerRef.current) return;
-
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const flushSave = (doc: string) => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = null;
-      onSaveRef.current?.(doc);
-    };
 
     const state = EditorState.create({
       doc: initialValue,
@@ -45,7 +41,7 @@ export default function Editor({
           {
             key: "Mod-s",
             run: (view) => {
-              flushSave(view.state.doc.toString());
+              onSaveRef.current?.(view.state.doc.toString());
               return true;
             },
             preventDefault: true,
@@ -56,13 +52,9 @@ export default function Editor({
         markdown(),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
-          if (!update.docChanged) return;
-          if (debounceTimer) clearTimeout(debounceTimer);
-          const snapshot = update.state.doc.toString();
-          debounceTimer = setTimeout(
-            () => flushSave(snapshot),
-            AUTOSAVE_DEBOUNCE_MS,
-          );
+          if (update.docChanged) {
+            onChangeRef.current?.(update.state.doc.toString());
+          }
         }),
       ],
     });
@@ -70,10 +62,6 @@ export default function Editor({
     const view = new EditorView({ state, parent: containerRef.current });
 
     return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-        flushSave(view.state.doc.toString());
-      }
       view.destroy();
     };
     // We intentionally remount on docKey change rather than diffing doc.

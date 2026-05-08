@@ -160,6 +160,57 @@ button {
   min-height: 0;
 }
 
+.memex-main__body--split {
+  flex-direction: row;
+  gap: 1px;
+  background: var(--border);
+}
+
+.memex-main__body--split > * {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.memex-main__title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.memex-main__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.memex-modes {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.memex-modes__btn {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  background: transparent;
+  border-radius: 0;
+  border-right: 1px solid var(--border);
+}
+
+.memex-modes__btn:last-child {
+  border-right: 0;
+}
+
+.memex-modes__btn--active {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
 .memex-editor {
   flex: 1;
   min-height: 0;
