@@ -23,7 +23,7 @@ Legend: `[ ]` todo · `[x]` done · `[B]` blocked (see BLOCKED.md)
 - [x] S3.4  verified: 2026-05-09 f06cd69
 
 ## S4 — Editor + Viewer
-- [ ] S4.1
+- [x] S4.1  verified: 2026-05-09 9168830
 - [ ] S4.2
 - [ ] S4.3
 - [ ] S4.4
