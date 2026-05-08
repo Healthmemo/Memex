@@ -44,4 +44,4 @@ Legend: `[ ]` todo · `[x]` done · `[B]` blocked (see BLOCKED.md)
 - [x] S7.1  verified: 2026-05-09 de4c8d1
 - [x] S7.2  verified: 2026-05-09 4cf1ca5
 - [x] S7.3  verified: 2026-05-09 e25b905
-- [ ] S7.4
+- [x] S7.4  verified: 2026-05-09 3fdbc46 (tag v0.1.0)
