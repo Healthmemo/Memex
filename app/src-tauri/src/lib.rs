@@ -3,6 +3,7 @@
 // the Tauri runtime.
 
 mod commands;
+pub mod parser;
 pub mod vault;
 
 pub fn run() {
@@ -12,6 +13,7 @@ pub fn run() {
             commands::list_files,
             commands::read_file,
             commands::write_file,
+            commands::parse_links,
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())

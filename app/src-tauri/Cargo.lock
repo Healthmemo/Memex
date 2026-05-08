@@ -1763,6 +1763,7 @@ name = "memex"
 version = "0.1.0"
 dependencies = [
  "gray_matter",
+ "regex",
  "serde",
  "serde_json",
  "tauri",
