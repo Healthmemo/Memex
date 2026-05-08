@@ -25,7 +25,7 @@ Legend: `[ ]` todo · `[x]` done · `[B]` blocked (see BLOCKED.md)
 ## S4 — Editor + Viewer
 - [x] S4.1  verified: 2026-05-09 9168830
 - [x] S4.2  verified: 2026-05-09 bfbd3fb
-- [ ] S4.3
+- [x] S4.3  verified: 2026-05-09 1798dba
 - [ ] S4.4
 
 ## S5 — Wikilinks + Backlinks
