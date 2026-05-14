@@ -2,8 +2,11 @@
 // to a domain module (vault, parser, index). Keep this file free of business
 // logic so the same modules remain unit-testable without Tauri runtime.
 
+use crate::claude::{self, CliResult, CliStatus};
+use crate::git_log::{self, Commit};
 use crate::index::{self, Adjacency};
 use crate::parser;
+use crate::provenance::{self, ProvenanceRow};
 use crate::vault::{self, FileContent, FileNode, VaultMeta};
 
 #[tauri::command]
@@ -59,4 +62,26 @@ pub fn parse_links(path: String) -> Result<Vec<String>, String> {
 #[tauri::command]
 pub fn build_link_graph(root: String) -> Result<Adjacency, String> {
     index::build_link_graph(&root)
+}
+
+#[tauri::command]
+pub fn git_log(vault_path: String, limit: Option<usize>) -> Result<Vec<Commit>, String> {
+    git_log::git_log(&vault_path, limit.unwrap_or(50))
+}
+
+#[tauri::command]
+pub fn claude_check() -> CliStatus {
+    claude::check()
+}
+
+#[tauri::command]
+pub async fn claude_run(prompt: String, cwd: String) -> Result<CliResult, String> {
+    tauri::async_runtime::spawn_blocking(move || claude::run_prompt(&prompt, &cwd))
+        .await
+        .map_err(|e| format!("join failed: {e}"))?
+}
+
+#[tauri::command]
+pub fn scan_provenance(vault_path: String) -> Result<Vec<ProvenanceRow>, String> {
+    provenance::scan_provenance(&vault_path)
 }

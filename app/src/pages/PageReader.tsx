@@ -1,8 +1,8 @@
 // PageReader: opens a vault file via real IPC. Source mode uses CodeMirror,
-// preview mode renders markdown-it (with wikilinks). Sample-data routes
-// (`page:sample/<id>`) fall through to the design's mock content.
+// preview mode renders markdown-it (with wikilinks). The `sample/<id>`
+// pseudo-route falls through to the design's mock content.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { Icon } from "../lib/icons";
 import type { Strings } from "../lib/i18n";
@@ -24,7 +24,7 @@ export default function PageReader({
   if (pageRoute.startsWith("sample/")) {
     return <SamplePage id={pageRoute.slice(7)} />;
   }
-  return <VaultPage path={pageRoute} t={t} />;
+  return <VaultPage key={pageRoute} path={pageRoute} t={t} />;
 }
 
 function SamplePage({ id }: { id: string }): JSX.Element {
@@ -105,8 +105,12 @@ function VaultPage({ path }: { path: string; t: Strings }): JSX.Element {
   const openFile = useVaultStore((s) => s.openFile);
   const activeFile = useVaultStore((s) => s.activeFile);
   const saveFile = useVaultStore((s) => s.saveFile);
-  const [mode, setMode] = useState<"preview" | "source" | "split">("preview");
+  const resolveWikilink = useVaultStore((s) => s.resolveWikilink);
+  const error = useVaultStore((s) => s.error);
+  const setRoute = useUIStore((s) => s.setRoute);
+  const [mode, setMode] = useState<"preview" | "source" | "split">("split");
   const [draft, setDraft] = useState("");
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     void openFile(path);
@@ -116,45 +120,60 @@ function VaultPage({ path }: { path: string; t: Strings }): JSX.Element {
     if (activeFile?.path === path) setDraft(activeFile.content);
   }, [activeFile?.path, activeFile?.content, path]);
 
+  useEffect(
+    () => () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    },
+    [],
+  );
+
+  function scheduleSave(c: string): void {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      void saveFile(path, c);
+    }, AUTOSAVE_MS);
+  }
+  function flushSave(c: string): void {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    void saveFile(path, c);
+  }
+
   if (!activeFile || activeFile.path !== path) {
     return (
       <div className="workspace">
         <p className="muted" style={{ paddingTop: 80 }}>
-          Loading…
+          {error ?? "Loading…"}
         </p>
       </div>
     );
-  }
-
-  let saveTimer: ReturnType<typeof setTimeout> | null = null;
-  function onChange(c: string): void {
-    setDraft(c);
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      void saveFile(path, c);
-    }, AUTOSAVE_MS);
-  }
-  function onSave(c: string): void {
-    if (saveTimer) {
-      clearTimeout(saveTimer);
-      saveTimer = null;
-    }
-    void saveFile(path, c);
   }
 
   const fileName = path.split(/[\\/]/).pop() ?? path;
   return (
     <div className="workspace">
       <header className="page-head" style={{ paddingTop: 40 }}>
-        <div className="row" style={{ marginBottom: 16 }}>
+        <div className="row" style={{ marginBottom: 16, gap: 12 }}>
           <span className="typebadge">
             <span className="tb-dot t-overview"></span>
             file
           </span>
-          <span className="muted" style={{ fontSize: 12.5 }}>
+          <span
+            className="muted"
+            style={{
+              fontSize: 12.5,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+            }}
+            title={path}
+          >
             {path}
           </span>
-          <div className="segmented" style={{ marginLeft: "auto" }}>
+          <div className="segmented">
             <button
               className={mode === "source" ? "active" : ""}
               onClick={() => setMode("source")}
@@ -190,14 +209,23 @@ function VaultPage({ path }: { path: string; t: Strings }): JSX.Element {
             <Editor
               docKey={path}
               initialValue={activeFile.content}
-              onChange={onChange}
-              onSave={onSave}
+              onChange={(c) => {
+                setDraft(c);
+                scheduleSave(c);
+              }}
+              onSave={(c) => flushSave(c)}
             />
           </div>
         ) : null}
         {mode !== "source" ? (
           <div className="prose" style={{ flex: 1 }}>
-            <Viewer content={draft} onLinkClick={() => undefined} />
+            <Viewer
+              content={draft}
+              onLinkClick={(target) => {
+                const resolved = resolveWikilink(target);
+                if (resolved) setRoute(`page:${resolved}`);
+              }}
+            />
           </div>
         ) : null}
       </section>

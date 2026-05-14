@@ -31,6 +31,33 @@ export interface Adjacency {
   tags: Record<string, string[]>;
 }
 
+export interface GitCommit {
+  hash: string;
+  date: string;
+  subject: string;
+  created: number;
+  modified: number;
+}
+
+export interface ClaudeStatus {
+  installed: boolean;
+  version: string | null;
+  path: string | null;
+}
+
+export interface ClaudeResult {
+  stdout: string;
+  stderr: string;
+  status: number;
+}
+
+export interface ProvenanceRow {
+  path: string;
+  name: string;
+  cited: number;
+  total: number;
+}
+
 export const ipc = {
   openVault: (path: string) => invoke<VaultMeta>("open_vault", { path }),
   ensureDefaultVault: () => invoke<string>("ensure_default_vault"),
@@ -52,4 +79,11 @@ export const ipc = {
     const selection = await open({ directory: true, multiple: false });
     return typeof selection === "string" ? selection : null;
   },
+  gitLog: (vaultPath: string, limit?: number) =>
+    invoke<GitCommit[]>("git_log", { vaultPath, limit }),
+  claudeCheck: () => invoke<ClaudeStatus>("claude_check"),
+  claudeRun: (prompt: string, cwd: string) =>
+    invoke<ClaudeResult>("claude_run", { prompt, cwd }),
+  scanProvenance: (vaultPath: string) =>
+    invoke<ProvenanceRow[]>("scan_provenance", { vaultPath }),
 };

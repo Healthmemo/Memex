@@ -1,42 +1,109 @@
-// Ingest page. Visual prototype only — pipeline runs a mock 5-step animation.
-// Real ingestion will spawn the Claude CLI later.
+// Ingest page — drop a file or paste raw text, then call `claude` to write
+// it into `raw/<slug>.md` and ingest into the wiki per CLAUDE.md instructions.
 
 import { useEffect, useState } from "react";
 import type { JSX } from "react";
 import { Icon } from "../lib/icons";
 import type { Strings } from "../lib/i18n";
-import { SAMPLE } from "../lib/sample";
+import { ipc } from "../lib/ipc";
+import type { ClaudeStatus } from "../lib/ipc";
+import { useVaultStore } from "../stores/vaultStore";
+
+type Stage = "idle" | "writing-raw" | "claude" | "done" | "error";
+
+const INGEST_PROMPT = (slug: string, title: string) =>
+  `New source has been added at \`raw/${slug}.md\` (title: "${title}"). Please ingest it into the wiki following the workflow in CLAUDE.md:
+
+1. Read the source completely.
+2. Identify pages it affects (entities, concepts, techniques, analyses).
+3. Update existing pages with inline citations, or create new pages with required frontmatter.
+4. Create the source-summary page \`wiki/source-${slug}.md\`.
+5. Update \`wiki/index.md\` and append a \`wiki/log.md\` entry.
+6. Write an ingest report at \`ingest-reports/<datetime>-${slug}.md\` summarising what was created/modified and why.
+
+When done, output a one-line confirmation.`;
+
+function slugify(s: string): string {
+  return (
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9가-힣]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 80) || "source"
+  );
+}
 
 export default function PageIngest({ t }: { t: Strings }): JSX.Element {
+  const currentVault = useVaultStore((s) => s.currentVault);
+  const refreshTree = useVaultStore((s) => s.refreshTree);
+  const refreshLinkGraph = useVaultStore((s) => s.refreshLinkGraph);
+  const [status, setStatus] = useState<ClaudeStatus | null>(null);
   const [over, setOver] = useState(false);
-  const [text, setText] = useState("");
-  const [running, setRunning] = useState(false);
-  const [stepIdx, setStepIdx] = useState(-1);
-  const steps = [
-    t.ing_step_read,
-    t.ing_step_summarize,
-    t.ing_step_extract,
-    t.ing_step_link,
-    t.ing_step_lint,
-  ];
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [stage, setStage] = useState<Stage>("idle");
+  const [log, setLog] = useState<string>("");
 
   useEffect(() => {
-    if (!running) return;
-    if (stepIdx >= steps.length - 1) {
-      const t1 = setTimeout(() => {
-        setRunning(false);
-        setStepIdx(-1);
-      }, 800);
-      return () => clearTimeout(t1);
-    }
-    const t1 = setTimeout(() => setStepIdx((s) => s + 1), 700);
-    return () => clearTimeout(t1);
-  }, [running, stepIdx, steps.length]);
+    ipc.claudeCheck().then(setStatus).catch(() => undefined);
+  }, []);
 
-  const run = (): void => {
-    setRunning(true);
-    setStepIdx(0);
-  };
+  const canRun = currentVault && status?.installed && (title.trim() || body.trim());
+
+  async function run(): Promise<void> {
+    if (!canRun || !currentVault) return;
+    const finalTitle = title.trim() || `untitled-${Date.now()}`;
+    const slug = slugify(finalTitle);
+    setStage("writing-raw");
+    setLog(`Writing raw/${slug}.md…`);
+    try {
+      // Ensure raw/ exists, then write the source.
+      const rawDir = `${currentVault.path}/raw`;
+      try {
+        await ipc.createFolder(currentVault.path, "raw");
+      } catch {
+        /* already exists */
+      }
+      const payload =
+        body.trim().length > 0
+          ? `# ${finalTitle}\n\n${body.trim()}\n`
+          : `# ${finalTitle}\n\n_(empty)_\n`;
+      await ipc.writeFile(`${rawDir}/${slug}.md`, payload);
+      await refreshTree();
+
+      setStage("claude");
+      setLog((l) => `${l}\nInvoking claude…`);
+      const res = await ipc.claudeRun(
+        INGEST_PROMPT(slug, finalTitle),
+        currentVault.path,
+      );
+      setLog((l) => `${l}\n\n${res.stdout || res.stderr}`);
+      if (res.status !== 0) {
+        setStage("error");
+        return;
+      }
+      await refreshTree();
+      void refreshLinkGraph();
+      setStage("done");
+    } catch (err) {
+      setStage("error");
+      setLog((l) => `${l}\n\nERROR: ${String(err)}`);
+    }
+  }
+
+  function onDrop(e: React.DragEvent<HTMLDivElement>): void {
+    e.preventDefault();
+    setOver(false);
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    if (!title) setTitle(file.name.replace(/\.[^.]+$/, ""));
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === "string" ? reader.result : "";
+      setBody(text);
+    };
+    reader.readAsText(file);
+  }
 
   return (
     <div className="workspace">
@@ -46,7 +113,22 @@ export default function PageIngest({ t }: { t: Strings }): JSX.Element {
         <p className="page-lede">{t.ing_lede}</p>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24, marginTop: 16 }}>
+      {status && !status.installed ? (
+        <div className="card-flat" style={{ marginTop: 12 }}>
+          <Icon name="info" size={14} />{" "}
+          <code style={{ fontFamily: "var(--font-mono)" }}>claude</code> CLI not
+          detected. Install it before running ingest.
+        </div>
+      ) : null}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 320px",
+          gap: 24,
+          marginTop: 16,
+        }}
+      >
         <div className="col">
           <div
             className={"dropzone" + (over ? " over" : "")}
@@ -55,108 +137,135 @@ export default function PageIngest({ t }: { t: Strings }): JSX.Element {
               setOver(true);
             }}
             onDragLeave={() => setOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setOver(false);
-            }}
+            onDrop={onDrop}
           >
             <Icon name="upload" size={26} />
             <div className="dropzone-title">{t.ing_drop}</div>
-            <div className="dropzone-sub">PDF · MD · TXT · DOCX — up to 25 MB</div>
-            <button className="btn" style={{ marginTop: 14 }}>
-              {t.ing_browse}
-            </button>
+            <div className="dropzone-sub">
+              Drop a text/markdown file or paste below
+            </div>
           </div>
 
           <div className="field">
-            <label>URL</label>
-            <input className="input" placeholder={t.ing_paste_url_ph} />
+            <label>Title</label>
+            <input
+              className="input"
+              placeholder="e.g. Byte Pair Encoding"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
           </div>
 
           <div className="field">
             <label>{t.ing_or_paste}</label>
             <textarea
               className="textarea"
-              rows={6}
+              rows={10}
               placeholder={t.ing_paste_ph}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
             />
           </div>
 
           <div className="row">
             <span className="chip">
-              <Icon name="bolt" size={11} /> Claude Sonnet 4.6
+              <Icon name="bolt" size={11} /> Claude CLI
             </span>
-            <span className="chip">
-              <Icon name="globe" size={11} /> Drafts in: 한국어
+            <span className="muted" style={{ fontSize: 12 }}>
+              vault: {currentVault?.path ?? "(none)"}
             </span>
             <button
               className="btn btn-primary"
               style={{ marginLeft: "auto" }}
-              onClick={run}
-              disabled={running}
+              onClick={() => void run()}
+              disabled={!canRun || stage === "claude" || stage === "writing-raw"}
             >
-              <Icon name="sparkles" size={14} /> {running ? "Running…" : t.ing_run}
+              <Icon name="sparkles" size={14} />{" "}
+              {stage === "claude" || stage === "writing-raw"
+                ? "Running…"
+                : t.ing_run}
             </button>
           </div>
         </div>
 
         <aside className="col">
           <div className="card">
-            <div className="section-title" style={{ fontSize: 13.5, marginBottom: 12 }}>
+            <div
+              className="section-title"
+              style={{ fontSize: 13.5, marginBottom: 12 }}
+            >
               {t.ing_pipeline}
             </div>
             <div className="stepper">
-              {steps.map((s, i) => (
-                <div
-                  key={i}
-                  className={"step " + (stepIdx > i ? "done" : stepIdx === i ? "active" : "")}
-                >
-                  <div className="step-bullet">
-                    {stepIdx > i ? <Icon name="check" size={11} /> : i + 1}
-                  </div>
-                  <div className="step-body">
-                    <div className="step-title">{s}</div>
-                    {i === stepIdx ? <div className="step-sub">working…</div> : null}
-                    {i === 2 && stepIdx > 2 ? <div className="step-sub">3 entities · 1 concept</div> : null}
-                    {i === 3 && stepIdx > 3 ? <div className="step-sub">7 cross-links written</div> : null}
-                  </div>
-                </div>
-              ))}
+              <StepRow
+                idx={1}
+                title={t.ing_step_read}
+                active={stage === "writing-raw"}
+                done={
+                  stage === "claude" || stage === "done" || stage === "error"
+                }
+              />
+              <StepRow
+                idx={2}
+                title="Claude reads & writes wiki"
+                active={stage === "claude"}
+                done={stage === "done"}
+              />
+              <StepRow
+                idx={3}
+                title="Index & link graph refresh"
+                active={false}
+                done={stage === "done"}
+              />
             </div>
           </div>
-
-          <div className="card">
-            <div className="section-title" style={{ fontSize: 13.5, marginBottom: 8 }}>
-              {t.ing_recent}
+          <div className="card" style={{ minHeight: 80 }}>
+            <div
+              className="section-title"
+              style={{ fontSize: 13.5, marginBottom: 6 }}
+            >
+              Log
             </div>
-            <div className="list">
-              {SAMPLE.history.slice(0, 4).map((h, i) => (
-                <div
-                  key={i}
-                  className="list-row"
-                  style={{ gridTemplateColumns: "20px 1fr auto" }}
-                >
-                  <span className="ic">
-                    <Icon name="file" size={13} />
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 13,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {h.source}
-                  </span>
-                  <span className="meta">{h.date.slice(5)}</span>
-                </div>
-              ))}
-            </div>
+            <pre
+              style={{
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                fontFamily: "var(--font-mono)",
+                fontSize: 12,
+                color: stage === "error" ? "#dc2626" : "var(--ink-3)",
+                margin: 0,
+                maxHeight: 280,
+                overflow: "auto",
+              }}
+            >
+              {log || "—"}
+            </pre>
           </div>
         </aside>
+      </div>
+    </div>
+  );
+}
+
+function StepRow({
+  idx,
+  title,
+  active,
+  done,
+}: {
+  idx: number;
+  title: string;
+  active: boolean;
+  done: boolean;
+}): JSX.Element {
+  return (
+    <div className={"step " + (done ? "done" : active ? "active" : "")}>
+      <div className="step-bullet">
+        {done ? <Icon name="check" size={11} /> : idx}
+      </div>
+      <div className="step-body">
+        <div className="step-title">{title}</div>
+        {active ? <div className="step-sub">working…</div> : null}
       </div>
     </div>
   );

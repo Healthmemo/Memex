@@ -1,6 +1,8 @@
-// Sidebar — left navigation, Notion-flavored. Reads vault file tree from
-// vaultStore and groups pages by folder name for the Pages section.
+// Sidebar — left navigation, Notion-flavored. Renders the real vault file
+// tree recursively (Obsidian-style); each folder is collapsible and remembers
+// its state per absolute path.
 
+import { useState } from "react";
 import type { JSX, MouseEvent } from "react";
 import { Icon, MemexMark } from "../lib/icons";
 import type { Strings } from "../lib/i18n";
@@ -9,11 +11,11 @@ import { useVaultStore } from "../stores/vaultStore";
 import { ipc } from "../lib/ipc";
 import type { FileNode } from "../lib/ipc";
 import { promptText, confirmAction } from "../stores/dialogStore";
-import { SAMPLE } from "../lib/sample";
 
-interface Folder {
-  id: string;
-  label: string;
+interface ContextMenuState {
+  x: number;
+  y: number;
+  node: FileNode | "vault";
 }
 
 export default function Sidebar({ t }: { t: Strings }): JSX.Element {
@@ -21,33 +23,27 @@ export default function Sidebar({ t }: { t: Strings }): JSX.Element {
   const setRoute = useUIStore((s) => s.setRoute);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const toggleCmd = useUIStore((s) => s.toggleCmd);
-  const expandedFolders = useUIStore((s) => s.expandedFolders);
-  const toggleFolder = useUIStore((s) => s.toggleFolder);
   const fileTree = useVaultStore((s) => s.fileTree);
   const currentVault = useVaultStore((s) => s.currentVault);
   const openVault = useVaultStore((s) => s.openVault);
+  const [menu, setMenu] = useState<ContextMenuState | null>(null);
 
-  const folders: Folder[] = [
-    { id: "sources", label: t.folder_sources },
-    { id: "entities", label: t.folder_entities },
-    { id: "concepts", label: t.folder_concepts },
-    { id: "techniques", label: t.folder_techniques },
-    { id: "analyses", label: t.folder_analyses },
-  ];
-
-  const grouped = groupVaultFolders(fileTree, folders);
-  const totalPages = Object.values(grouped).reduce(
-    (s, arr) => s + arr.length,
-    0,
-  );
-
-  async function pickVault() {
+  async function pickVault(): Promise<void> {
     const path = await ipc.pickDirectory();
     if (path) await openVault(path);
   }
 
+  const totalFiles = countFiles(fileTree);
+  const activePath = route.startsWith("page:") ? route.slice(5) : null;
+
+  function showMenu(e: MouseEvent, node: FileNode | "vault"): void {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ x: e.clientX, y: e.clientY, node });
+  }
+
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" onClick={() => setMenu(null)}>
       <div className="side-head">
         <button className="brand" onClick={toggleSidebar}>
           <span className="brand-mark">
@@ -58,14 +54,18 @@ export default function Sidebar({ t }: { t: Strings }): JSX.Element {
             <Icon name="sidebar" size={14} />
           </span>
         </button>
-        <button className="proj-switch" onClick={() => void pickVault()}>
+        <button
+          className="proj-switch"
+          onClick={() => void pickVault()}
+          onContextMenu={(e) => showMenu(e, "vault")}
+        >
           <span className="proj-icon">
             {currentVault?.name?.charAt(0).toUpperCase() ?? "·"}
           </span>
           <span className="proj-name">
             {currentVault?.name ?? "No vault"}
           </span>
-          <span className="proj-meta">{totalPages || ""}</span>
+          <span className="proj-meta">{totalFiles || ""}</span>
           <Icon name="chevD" size={12} />
         </button>
       </div>
@@ -118,7 +118,6 @@ export default function Sidebar({ t }: { t: Strings }): JSX.Element {
             icon="history"
             active={route === "history"}
             onClick={() => setRoute("history")}
-            count={SAMPLE.history.length}
           />
           <NavItem
             label={t.nav_provenance}
@@ -133,21 +132,25 @@ export default function Sidebar({ t }: { t: Strings }): JSX.Element {
             <span>{t.nav_pages}</span>
             <NewPageButton parentDir={currentVault?.path ?? ""} />
           </div>
-          {folders.map((f) => {
-            const items = grouped[f.id] ?? [];
-            const open = expandedFolders[f.id] ?? true;
-            return (
-              <FolderRow
-                key={f.id}
-                folder={f}
-                items={items}
-                open={open}
-                route={route}
-                setRoute={setRoute}
-                onToggle={() => toggleFolder(f.id)}
+          {fileTree.length === 0 ? (
+            <div
+              className="muted"
+              style={{ padding: "8px", fontSize: 12.5 }}
+            >
+              {currentVault ? "Empty vault" : "No vault selected"}
+            </div>
+          ) : (
+            fileTree.map((node) => (
+              <TreeNode
+                key={node.path}
+                node={node}
+                depth={0}
+                activePath={activePath}
+                onSelect={(p) => setRoute(`page:${p}`)}
+                onContextMenu={showMenu}
               />
-            );
-          })}
+            ))
+          )}
         </div>
 
         <div className="nav-group">
@@ -165,17 +168,15 @@ export default function Sidebar({ t }: { t: Strings }): JSX.Element {
         <div className="status-row">
           <span className="sdot"></span>
           <span>
-            Claude CLI <b>online</b>
-          </span>
-          <span className="sr-action">v0.42</span>
-        </div>
-        <div className="status-row">
-          <span className="sdot"></span>
-          <span>
             Vault <b>{currentVault ? "linked" : "—"}</b>
           </span>
+          {currentVault ? (
+            <span className="sr-action">{totalFiles}f</span>
+          ) : null}
         </div>
       </div>
+
+      {menu ? <ContextMenu menu={menu} onClose={() => setMenu(null)} /> : null}
     </aside>
   );
 }
@@ -185,13 +186,11 @@ function NavItem({
   icon,
   active,
   onClick,
-  count,
 }: {
   label: string;
   icon: Parameters<typeof Icon>[0]["name"];
   active: boolean;
   onClick: () => void;
-  count?: number;
 }): JSX.Element {
   return (
     <button
@@ -203,81 +202,92 @@ function NavItem({
         <Icon name={icon} size={15} />
       </span>
       <span className="ni-text">{label}</span>
-      {count !== undefined ? <span className="ni-count">{count}</span> : null}
     </button>
   );
 }
 
-function FolderRow({
-  folder,
-  items,
-  open,
-  route,
-  setRoute,
-  onToggle,
-}: {
-  folder: Folder;
-  items: FileNode[];
-  open: boolean;
-  route: string;
-  setRoute: (r: `page:${string}`) => void;
-  onToggle: () => void;
-}): JSX.Element {
-  return (
-    <>
-      <button className="nav-item" onClick={onToggle}>
-        <span className={"ni-caret" + (open ? " open" : "")}>
-          <Icon name="chevR" size={10} />
-        </span>
-        <span className="ni-icon">
-          <Icon name="folder" />
-        </span>
-        <span className="ni-text">{folder.label}</span>
-        <span className="ni-count">{items.length}</span>
-      </button>
-      {open ? (
-        <div className="nav-children">
-          {items.map((node) => (
-            <PageLeaf
-              key={node.path}
-              node={node}
-              active={route === `page:${node.path}`}
-              onClick={() => setRoute(`page:${node.path}`)}
-            />
-          ))}
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-function PageLeaf({
+function TreeNode({
   node,
-  active,
-  onClick,
+  depth,
+  activePath,
+  onSelect,
+  onContextMenu,
 }: {
   node: FileNode;
-  active: boolean;
-  onClick: () => void;
+  depth: number;
+  activePath: string | null;
+  onSelect: (path: string) => void;
+  onContextMenu: (e: MouseEvent, node: FileNode) => void;
 }): JSX.Element {
-  if (node.kind === "directory") {
+  if (node.kind === "file") {
+    const active = activePath === node.path;
     return (
-      <button className="nav-leaf" onClick={onClick}>
-        <span className="nl-dot t-overview"></span>
-        <span className="nl-text">{node.name}/</span>
+      <button
+        className={"nav-leaf" + (active ? " active" : "")}
+        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        onClick={() => onSelect(node.path)}
+        onContextMenu={(e) => onContextMenu(e, node)}
+      >
+        <Icon name="page" size={13} />
+        <span className="nl-text">{stripExt(node.name)}</span>
       </button>
     );
   }
-  const tone = inferType(node.name);
   return (
-    <button
-      className={"nav-leaf" + (active ? " active" : "")}
-      onClick={onClick}
-      onContextMenu={(e) => void contextMenu(e, node)}
-    >
-      <span className={`nl-dot t-${tone}`}></span>
-      <span className="nl-text">{stripExt(node.name)}</span>
-    </button>
+    <DirectoryRow
+      node={node}
+      depth={depth}
+      activePath={activePath}
+      onSelect={onSelect}
+      onContextMenu={onContextMenu}
+    />
+  );
+}
+
+function DirectoryRow({
+  node,
+  depth,
+  activePath,
+  onSelect,
+  onContextMenu,
+}: {
+  node: Extract<FileNode, { kind: "directory" }>;
+  depth: number;
+  activePath: string | null;
+  onSelect: (path: string) => void;
+  onContextMenu: (e: MouseEvent, node: FileNode) => void;
+}): JSX.Element {
+  const expanded = useUIStore((s) => s.expandedFolders[node.path] ?? false);
+  const toggle = useUIStore((s) => s.toggleFolder);
+  return (
+    <>
+      <button
+        className="nav-item"
+        style={{ paddingLeft: `${depth * 12 + 6}px` }}
+        onClick={() => toggle(node.path)}
+        onContextMenu={(e) => onContextMenu(e, node)}
+      >
+        <span className={"ni-caret" + (expanded ? " open" : "")}>
+          <Icon name="chevR" size={10} />
+        </span>
+        <span className="ni-icon">
+          <Icon name="folder" size={14} />
+        </span>
+        <span className="ni-text">{node.name}</span>
+      </button>
+      {expanded
+        ? node.children.map((child) => (
+            <TreeNode
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              activePath={activePath}
+              onSelect={onSelect}
+              onContextMenu={onContextMenu}
+            />
+          ))
+        : null}
+    </>
   );
 }
 
@@ -286,9 +296,10 @@ function NewPageButton({ parentDir }: { parentDir: string }): JSX.Element {
   return (
     <button
       className="ngl-add"
-      title="New page"
+      title="New note in vault root"
       disabled={!parentDir}
-      onClick={async () => {
+      onClick={async (e) => {
+        e.stopPropagation();
         if (!parentDir) return;
         const name = await promptText({
           title: "New note",
@@ -305,65 +316,127 @@ function NewPageButton({ parentDir }: { parentDir: string }): JSX.Element {
   );
 }
 
-async function contextMenu(e: MouseEvent, node: FileNode): Promise<void> {
-  e.preventDefault();
-  const ok = await confirmAction({
-    title: `Delete "${node.name}"?`,
-    message: "This cannot be undone.",
-    danger: true,
-  });
-  if (ok) {
-    await useVaultStore.getState().deletePath(node.path);
-  }
-}
+function ContextMenu({
+  menu,
+  onClose,
+}: {
+  menu: ContextMenuState;
+  onClose: () => void;
+}): JSX.Element {
+  const currentVault = useVaultStore((s) => s.currentVault);
+  const createFile = useVaultStore((s) => s.createFile);
+  const createFolder = useVaultStore((s) => s.createFolder);
+  const deletePath = useVaultStore((s) => s.deletePath);
+  const renamePath = useVaultStore((s) => s.renamePath);
 
-function inferType(filename: string): string {
-  const lower = filename.toLowerCase();
-  if (lower.startsWith("source-") || lower.startsWith("src-")) return "source";
-  if (lower.startsWith("analysis-") || lower.includes("vs-")) return "analysis";
-  if (lower.includes("technique") || lower.includes("bpe") || lower.includes("encoding")) return "technique";
-  if (lower.includes("pipeline") || lower.includes("paradigm")) return "concept";
-  return "entity";
+  function parentDir(): string {
+    if (menu.node === "vault") return currentVault?.path ?? "";
+    if (menu.node.kind === "directory") return menu.node.path;
+    const parts = menu.node.path.split(/[\\/]/);
+    parts.pop();
+    return parts.join("/");
+  }
+
+  async function handleNewFile(): Promise<void> {
+    onClose();
+    const name = await promptText({
+      title: "New note",
+      message: "File name (.md will be added automatically)",
+      defaultValue: "untitled.md",
+    });
+    if (!name) return;
+    const finalName = name.endsWith(".md") ? name : `${name}.md`;
+    await createFile(parentDir(), finalName);
+  }
+
+  async function handleNewFolder(): Promise<void> {
+    onClose();
+    const name = await promptText({
+      title: "New folder",
+      message: "Folder name",
+    });
+    if (!name) return;
+    await createFolder(parentDir(), name);
+  }
+
+  async function handleRename(): Promise<void> {
+    if (menu.node === "vault") return;
+    const target = menu.node;
+    onClose();
+    const newName = await promptText({
+      title: "Rename",
+      message: `Rename "${target.name}" to:`,
+      defaultValue: target.name,
+    });
+    if (!newName || newName === target.name) return;
+    await renamePath(target.path, newName);
+  }
+
+  async function handleDelete(): Promise<void> {
+    if (menu.node === "vault") return;
+    const target = menu.node;
+    onClose();
+    const ok = await confirmAction({
+      title: `Delete ${target.kind === "directory" ? "folder" : "file"}?`,
+      message: `"${target.name}" will be permanently removed.`,
+      danger: true,
+    });
+    if (!ok) return;
+    await deletePath(target.path);
+  }
+
+  return (
+    <ul
+      className="memex-menu"
+      style={{ left: menu.x, top: menu.y }}
+      role="menu"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <li>
+        <button type="button" onClick={() => void handleNewFile()}>
+          New note
+        </button>
+      </li>
+      <li>
+        <button type="button" onClick={() => void handleNewFolder()}>
+          New folder
+        </button>
+      </li>
+      {menu.node !== "vault" ? (
+        <>
+          <li className="memex-menu__sep" />
+          <li>
+            <button type="button" onClick={() => void handleRename()}>
+              Rename…
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              className="memex-menu__danger"
+              onClick={() => void handleDelete()}
+            >
+              Delete
+            </button>
+          </li>
+        </>
+      ) : null}
+    </ul>
+  );
 }
 
 function stripExt(name: string): string {
   return name.replace(/\.md$/i, "");
 }
 
-function groupVaultFolders(
-  tree: FileNode[],
-  folders: Folder[],
-): Record<string, FileNode[]> {
-  const result: Record<string, FileNode[]> = {};
-  for (const f of folders) result[f.id] = [];
-
-  for (const node of tree) {
-    if (node.kind === "directory") {
-      const key = matchFolder(node.name, folders);
-      if (key) {
-        result[key].push(...flattenFiles(node));
-      } else {
-        // unknown directory: stick into entities by default
-        result.entities.push(...flattenFiles(node));
-      }
-    } else {
-      result.sources.push(node);
-    }
+function countFiles(tree: FileNode[]): number {
+  let n = 0;
+  const stack = [...tree];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node) continue;
+    if (node.kind === "file") n++;
+    else stack.push(...node.children);
   }
-  return result;
-}
-
-function matchFolder(name: string, folders: Folder[]): string | null {
-  const n = name.toLowerCase();
-  for (const f of folders) {
-    if (f.id === n || f.id.startsWith(n) || n.startsWith(f.id)) return f.id;
-  }
-  if (n.startsWith("raw")) return "sources";
-  if (n.startsWith("wiki")) return "entities";
-  return null;
-}
-
-function flattenFiles(node: FileNode): FileNode[] {
-  if (node.kind === "file") return [node];
-  return node.children.flatMap(flattenFiles);
+  return n;
 }

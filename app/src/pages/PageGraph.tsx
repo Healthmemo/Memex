@@ -25,7 +25,7 @@ export default function PageGraph({ t }: { t: Strings }): JSX.Element {
       (m[n.group] ??= []).push(n);
     }
     return m;
-  }, [g.nodes]);
+  }, [g]);
   const positions = useMemo(() => {
     const angles: Record<string, number> = {};
     groupOrder.forEach((gn, i) => {
