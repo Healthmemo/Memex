@@ -1,11 +1,14 @@
 // Topbar — breadcrumb + meta + language switch.
 
+import { useEffect, useState } from "react";
 import type { JSX } from "react";
 import { Icon } from "../lib/icons";
 import type { IconName } from "../lib/icons";
 import type { Lang, Strings } from "../lib/i18n";
 import { useUIStore } from "../stores/uiStore";
 import { useVaultStore } from "../stores/vaultStore";
+import { ipc } from "../lib/ipc";
+import type { ClaudeStatus } from "../lib/ipc";
 
 export default function Topbar({ t }: { t: Strings }): JSX.Element {
   const route = useUIStore((s) => s.route);
@@ -14,6 +17,11 @@ export default function Topbar({ t }: { t: Strings }): JSX.Element {
   const lang = useUIStore((s) => s.lang);
   const setLang = useUIStore((s) => s.setLang);
   const currentVault = useVaultStore((s) => s.currentVault);
+  const [claude, setClaude] = useState<ClaudeStatus | null>(null);
+
+  useEffect(() => {
+    ipc.claudeCheck().then(setClaude).catch(() => undefined);
+  }, []);
 
   const projectName = currentVault?.name ?? t.app_name;
   const { crumb, icon } = breadcrumbFor(route, projectName, t);
@@ -44,9 +52,23 @@ export default function Topbar({ t }: { t: Strings }): JSX.Element {
           ⌘K
         </span>
       </button>
-      <span className="pill">
-        <span className="dot"></span>
-        <span>Synced</span>
+      <span
+        className="pill"
+        title={
+          claude?.installed
+            ? `claude CLI ${claude.version ?? ""} (${claude.path})`
+            : "claude CLI not detected on PATH"
+        }
+      >
+        <span
+          className="dot"
+          style={{
+            background: claude?.installed ? "#16a34a" : "var(--ink-4)",
+          }}
+        ></span>
+        <span>
+          claude {claude?.installed ? "ready" : "offline"}
+        </span>
       </span>
       <select
         className="pill"
