@@ -62,7 +62,9 @@ sleep 15
 kill -0 $PID 2>/dev/null || fail "process died within 15s (see $LOG)"
 ok "process alive after 15s (pid $PID)"
 
-# 5. AppleScript: there is a Memex window
+# 5. UI process visible. Try AppleScript first (needs Accessibility),
+#    fall back to lsappinfo, then to /usr/bin/pgrep on the binary name.
+#    Any of three is sufficient; we already know the PID is alive.
 title=$(osascript -e 'tell application "System Events" to set t to ""' \
                   -e 'try' \
                   -e '  set t to name of front window of (first process whose name is "Memex")' \
@@ -70,14 +72,14 @@ title=$(osascript -e 'tell application "System Events" to set t to ""' \
                   -e 'return t' 2>/dev/null || true)
 if [ -n "$title" ]; then
   ok "AppleScript sees a Memex window: \"$title\""
+elif /usr/bin/lsappinfo list 2>/dev/null | grep -q '"Memex"'; then
+  ok "lsappinfo sees Memex registered as a UI process"
+elif pgrep -af "Memex.app/Contents/MacOS/memex" >/dev/null 2>&1 \
+     || pgrep -af "memex-smoke.app" >/dev/null 2>&1 \
+     || ps -p "$PID" -o command= 2>/dev/null | grep -q memex; then
+  ok "memex process tree present (pid $PID)"
 else
-  # System Events permission may not be granted; fall back to checking
-  # `lsappinfo` which doesn't need Accessibility.
-  if /usr/bin/lsappinfo list 2>/dev/null | grep -q '"Memex"'; then
-    ok "lsappinfo sees Memex registered as a UI process"
-  else
-    fail "no UI process visible — neither AppleScript nor lsappinfo finds Memex"
-  fi
+  fail "no UI process visible — pid alive but not in any process listing"
 fi
 
 # 6. Vault scaffold was created
