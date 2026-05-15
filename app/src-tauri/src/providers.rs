@@ -16,6 +16,36 @@ use std::time::Duration;
 
 const DEFAULT_TIMEOUT_SECS: u64 = 180;
 
+// Endpoints. Production URLs that can be overridden via env for tests.
+fn url_anthropic() -> String {
+    std::env::var("MEMEX_ANTHROPIC_URL")
+        .unwrap_or_else(|_| "https://api.anthropic.com/v1/messages".to_string())
+}
+fn url_openai() -> String {
+    std::env::var("MEMEX_OPENAI_URL")
+        .unwrap_or_else(|_| "https://api.openai.com/v1/chat/completions".to_string())
+}
+fn url_openai_models() -> String {
+    std::env::var("MEMEX_OPENAI_MODELS_URL")
+        .unwrap_or_else(|_| "https://api.openai.com/v1/models".to_string())
+}
+fn url_openrouter() -> String {
+    std::env::var("MEMEX_OPENROUTER_URL")
+        .unwrap_or_else(|_| "https://openrouter.ai/api/v1/chat/completions".to_string())
+}
+fn url_openrouter_models() -> String {
+    std::env::var("MEMEX_OPENROUTER_MODELS_URL")
+        .unwrap_or_else(|_| "https://openrouter.ai/api/v1/models".to_string())
+}
+fn url_google(model: &str) -> String {
+    if let Ok(base) = std::env::var("MEMEX_GOOGLE_URL") {
+        return format!("{base}/{model}:generateContent");
+    }
+    format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    )
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String, // "system" | "user" | "assistant"
@@ -154,7 +184,7 @@ async fn call_anthropic(
         temperature: req.temperature,
     };
     let resp = client
-        .post("https://api.anthropic.com/v1/messages")
+        .post(url_anthropic())
         .header("x-api-key", &key)
         .header("anthropic-version", "2023-06-01")
         .header("content-type", "application/json")
@@ -238,8 +268,8 @@ async fn call_openai_compatible(
 ) -> Result<ChatResponse, String> {
     let key = api_key.ok_or_else(|| "missing API key".to_string())?;
     let url = match req.provider_id.as_str() {
-        "openrouter" => "https://openrouter.ai/api/v1/chat/completions",
-        _ => "https://api.openai.com/v1/chat/completions",
+        "openrouter" => url_openrouter(),
+        _ => url_openai(),
     };
     let body = OpenAIRequest {
         model: &req.model,
@@ -296,7 +326,7 @@ async fn list_openai_models(
 ) -> Result<Vec<String>, String> {
     let key = api_key.ok_or_else(|| "missing API key".to_string())?;
     let resp = client
-        .get("https://api.openai.com/v1/models")
+        .get(url_openai_models())
         .bearer_auth(&key)
         .send()
         .await
@@ -321,7 +351,7 @@ async fn list_openai_models(
 
 async fn list_openrouter_models(client: &reqwest::Client) -> Result<Vec<String>, String> {
     let resp = client
-        .get("https://openrouter.ai/api/v1/models")
+        .get(url_openrouter_models())
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -408,10 +438,7 @@ async fn call_google(
     api_key: Option<String>,
 ) -> Result<ChatResponse, String> {
     let key = api_key.ok_or_else(|| "missing Google API key".to_string())?;
-    let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
-        req.model, key
-    );
+    let url = format!("{}?key={}", url_google(&req.model), key);
     let system = req.messages.iter().find(|m| m.role == "system");
     let contents: Vec<GeminiContent> = req
         .messages

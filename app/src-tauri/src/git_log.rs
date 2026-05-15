@@ -74,10 +74,13 @@ fn parse_log(text: &str) -> Vec<Commit> {
                 });
             }
         } else {
-            // shortstat line: ` 3 files changed, 12 insertions(+), 4 deletions(-)`
+            // shortstat: ` 3 files changed, 12 insertions(+), 4 deletions(-)`
+            // Singular variants: ` 1 file changed, 1 insertion(+), 1 deletion(-)`.
             if let Some(c) = current.as_mut() {
-                c.modified = extract_after("files changed", line);
-                c.created = extract_after("insertions(+)", line);
+                c.modified = extract_after("file changed", line)
+                    .max(extract_after("files changed", line));
+                c.created = extract_after("insertion(+)", line)
+                    .max(extract_after("insertions(+)", line));
             }
         }
     }
@@ -115,6 +118,16 @@ mod tests {
         assert_eq!(commits[0].date, "2026-05-08");
         assert_eq!(commits[0].subject, "feat: hello");
         assert_eq!(commits[0].created, 5);
+        assert_eq!(commits[0].modified, 1);
+    }
+
+    #[test]
+    fn parses_singular_forms() {
+        let text = "abc\x1f2026-01-01\x1finit\n 1 file changed, 1 insertion(+)\n";
+        let commits = parse_log(text);
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].created, 1);
+        assert_eq!(commits[0].modified, 1);
     }
 
     #[test]
