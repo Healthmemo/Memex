@@ -145,9 +145,7 @@ export default function OllamaSetup({
       await setProviderConnected("ollama", true);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
-      setPull((p) =>
-        p ? { ...p, error: String(err), done: true } : p,
-      );
+      setPull((p) => (p ? { ...p, error: String(err), done: true } : p));
     } finally {
       abortRef.current = null;
     }
@@ -162,7 +160,9 @@ export default function OllamaSetup({
       >
         <Icon name="download" size={16} />
         <div style={{ flex: 1, fontSize: 13.5, color: "var(--ink-3)" }}>
-          <div style={{ color: "var(--ink)", fontWeight: 500, marginBottom: 4 }}>
+          <div
+            style={{ color: "var(--ink)", fontWeight: 500, marginBottom: 4 }}
+          >
             Ollama not installed
           </div>
           Download Ollama from{" "}
@@ -192,7 +192,9 @@ export default function OllamaSetup({
       >
         <Icon name="info" size={16} />
         <div style={{ flex: 1, fontSize: 13.5, color: "var(--ink-3)" }}>
-          <div style={{ color: "var(--ink)", fontWeight: 500, marginBottom: 4 }}>
+          <div
+            style={{ color: "var(--ink)", fontWeight: 500, marginBottom: 4 }}
+          >
             Ollama installed but not running
           </div>
           Start the Ollama app from Spotlight (or run{" "}
@@ -274,20 +276,13 @@ export default function OllamaSetup({
                   opacity: installed ? 0.6 : 1,
                 }}
               >
-                <div style={{ fontWeight: 500, fontSize: 13.5 }}>
-                  {p.label}
-                </div>
-                <div
-                  className="muted"
-                  style={{ fontSize: 12, marginTop: 2 }}
-                >
+                <div style={{ fontWeight: 500, fontSize: 13.5 }}>{p.label}</div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
                   {p.blurb}
                 </div>
-                <div
-                  className="muted"
-                  style={{ fontSize: 11, marginTop: 4 }}
-                >
-                  {p.ram} · {installed ? "installed" : busy ? "pulling…" : "tap to pull"}
+                <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                  {p.ram} ·{" "}
+                  {installed ? "installed" : busy ? "pulling…" : "tap to pull"}
                 </div>
               </button>
             );
@@ -307,15 +302,15 @@ export default function OllamaSetup({
         <button
           className="btn"
           onClick={() => void pullModel(customModel.trim())}
-          disabled={
-            !customModel.trim() || (pull !== null && !pull.done)
-          }
+          disabled={!customModel.trim() || (pull !== null && !pull.done)}
         >
           Pull
         </button>
       </div>
 
-      {pull ? <PullProgress pull={pull} onDismiss={() => setPull(null)} /> : null}
+      {pull ? (
+        <PullProgress pull={pull} onDismiss={() => setPull(null)} />
+      ) : null}
     </div>
   );
 }

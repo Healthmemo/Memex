@@ -41,7 +41,8 @@ export default function App(): JSX.Element {
     () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false,
     [],
   );
-  const effectiveTheme = theme === "system" ? (sysDark ? "dark" : "light") : theme;
+  const effectiveTheme =
+    theme === "system" ? (sysDark ? "dark" : "light") : theme;
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", effectiveTheme);
@@ -83,20 +84,27 @@ export default function App(): JSX.Element {
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleCmd, toggleSidebar]);
 
-  // Auto-restore or create default vault on first mount.
+  // Auto-restore or create default vault on first mount. If the saved
+  // path no longer exists (user deleted the folder, switched machines, …)
+  // fall through to the seeded ~/Documents/Memex so the app is never
+  // stuck without a vault.
   useEffect(() => {
     if (currentVault) return;
-    const last = getLastVaultPath();
-    if (last) {
-      void openVault(last);
-      return;
-    }
     void (async () => {
+      const last = getLastVaultPath();
+      if (last) {
+        try {
+          await openVault(last);
+          if (useVaultStore.getState().currentVault) return;
+        } catch {
+          /* fall through */
+        }
+      }
       try {
         const p = await ipc.ensureDefaultVault();
         await openVault(p);
       } catch {
-        /* user can pick manually */
+        /* user can pick manually via Settings */
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,7 +118,8 @@ export default function App(): JSX.Element {
   else if (route === "history") body = <PageHistory t={t} />;
   else if (route === "provenance") body = <PageProvenance t={t} />;
   else if (route === "settings") body = <PageSettings t={t} />;
-  else if (route.startsWith("page:")) body = <PageReader t={t} pageRoute={route.slice(5)} />;
+  else if (route.startsWith("page:"))
+    body = <PageReader t={t} pageRoute={route.slice(5)} />;
   else body = <PageOverview t={t} />;
 
   return (

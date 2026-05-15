@@ -58,7 +58,8 @@ pub fn check() -> CliStatus {
 
 pub fn run_prompt(prompt: &str, cwd: &str) -> Result<CliResult, String> {
     let path = locate().ok_or_else(|| {
-        "claude CLI not found on PATH. Install: https://docs.claude.com/en/docs/claude-code".to_string()
+        "claude CLI not found on PATH. Install: https://docs.claude.com/en/docs/claude-code"
+            .to_string()
     })?;
     let dir = Path::new(cwd);
     if !dir.is_dir() {
@@ -95,10 +96,7 @@ fn locate() -> Option<String> {
             return Some(p);
         }
     }
-    let which = Command::new("/usr/bin/which")
-        .arg("claude")
-        .output()
-        .ok()?;
+    let which = Command::new("/usr/bin/which").arg("claude").output().ok()?;
     if !which.status.success() {
         return None;
     }
@@ -130,6 +128,52 @@ fn wait_with_timeout(
                 std::thread::sleep(Duration::from_millis(80));
             }
             Err(e) => return Err(format!("try_wait failed: {e}")),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_returns_status_struct() {
+        // We don't assert installed/not — the test host may or may not have
+        // claude. We just verify the struct comes back populated correctly.
+        let s = check();
+        if s.installed {
+            assert!(s.path.is_some());
+        } else {
+            assert!(s.path.is_none());
+            assert!(s.version.is_none());
+        }
+    }
+
+    #[test]
+    fn run_prompt_rejects_invalid_cwd() {
+        // Independent of whether claude is on PATH — we want the error path.
+        let unique = std::env::temp_dir().join("memex-claude-no-such-xyz");
+        let _ = std::fs::remove_dir_all(&unique);
+        let res = run_prompt("hi", unique.to_str().unwrap());
+        assert!(res.is_err(), "expected error for missing cwd");
+    }
+
+    #[test]
+    fn locate_honors_env_override() {
+        let prev = std::env::var("MEMEX_CLAUDE_PATH").ok();
+        unsafe {
+            std::env::set_var("MEMEX_CLAUDE_PATH", "/tmp/fake-claude");
+        }
+        let p = locate();
+        assert_eq!(p.as_deref(), Some("/tmp/fake-claude"));
+        if let Some(v) = prev {
+            unsafe {
+                std::env::set_var("MEMEX_CLAUDE_PATH", v);
+            }
+        } else {
+            unsafe {
+                std::env::remove_var("MEMEX_CLAUDE_PATH");
+            }
         }
     }
 }

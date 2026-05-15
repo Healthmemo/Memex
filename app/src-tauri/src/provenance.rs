@@ -128,7 +128,8 @@ mod tests {
 
     #[test]
     fn counts_cited_vs_total() {
-        let text = "---\ntitle: A\n---\n# Heading\n\nA claim without cite.\nA claim with cite[^src-x].\n";
+        let text =
+            "---\ntitle: A\n---\n# Heading\n\nA claim without cite.\nA claim with cite[^src-x].\n";
         let (cited, total) = count_claims(text);
         assert_eq!(total, 2);
         assert_eq!(cited, 1);

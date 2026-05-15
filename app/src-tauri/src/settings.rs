@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default)]
     pub providers: ProviderFlags,
@@ -18,6 +18,18 @@ pub struct Settings {
     pub ingest_provider: String,
     #[serde(default = "default_ingest_model")]
     pub ingest_model: String,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            providers: ProviderFlags::default(),
+            query_provider: default_query_provider(),
+            query_model: default_query_model(),
+            ingest_provider: default_ingest_provider(),
+            ingest_model: default_ingest_model(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -83,4 +95,86 @@ pub fn save(settings: &Settings) -> Result<(), String> {
     let path = settings_dir()?.join("settings.json");
     let raw = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
     std::fs::write(&path, raw).map_err(|e| format!("write settings: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    // Serialise tests that mutate the data dir env var.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_isolated_data<F: FnOnce(&PathBuf)>(name: &str, f: F) {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir =
+            std::env::temp_dir().join(format!("memex-settings-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let prev = std::env::var("MEMEX_DATA_DIR").ok();
+        unsafe {
+            std::env::set_var("MEMEX_DATA_DIR", &dir);
+        }
+        f(&dir);
+        if let Some(v) = prev {
+            unsafe {
+                std::env::set_var("MEMEX_DATA_DIR", v);
+            }
+        } else {
+            unsafe {
+                std::env::remove_var("MEMEX_DATA_DIR");
+            }
+        }
+    }
+
+    #[test]
+    fn defaults_use_claude_cli() {
+        let s = Settings::default();
+        assert_eq!(s.query_provider, "anthropic-cli");
+        assert_eq!(s.ingest_provider, "anthropic-cli");
+        assert!(!s.providers.anthropic_api);
+        assert!(!s.providers.openai_api);
+        assert!(!s.providers.google_api);
+        assert!(!s.providers.ollama);
+        assert!(!s.providers.openrouter);
+    }
+
+    #[test]
+    fn load_returns_default_when_missing() {
+        with_isolated_data("load-missing", |_dir| {
+            let s = load();
+            assert_eq!(s.query_provider, "anthropic-cli");
+        });
+    }
+
+    #[test]
+    fn save_then_load_roundtrips() {
+        with_isolated_data("roundtrip", |dir| {
+            let mut s = Settings::default();
+            s.query_provider = "openai-api".into();
+            s.query_model = "gpt-4o-mini".into();
+            s.providers.openai_api = true;
+            save(&s).unwrap();
+            assert!(dir.join("settings.json").exists());
+            let back = load();
+            assert_eq!(back.query_provider, "openai-api");
+            assert_eq!(back.query_model, "gpt-4o-mini");
+            assert!(back.providers.openai_api);
+        });
+    }
+
+    #[test]
+    fn load_tolerates_partial_json() {
+        with_isolated_data("partial", |dir| {
+            // Write a stub with only some fields — defaults should fill the rest.
+            std::fs::write(
+                dir.join("settings.json"),
+                r#"{ "providers": { "ollama": true } }"#,
+            )
+            .unwrap();
+            let s = load();
+            assert!(s.providers.ollama);
+            assert_eq!(s.query_provider, "anthropic-cli"); // default
+        });
+    }
 }

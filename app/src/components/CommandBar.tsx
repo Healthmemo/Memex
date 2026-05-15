@@ -92,7 +92,9 @@ export default function CommandBar({ t }: { t: Strings }): JSX.Element | null {
             >
               <Icon name={iconFor(r)} size={13} />
               <span>{r.label}</span>
-              <span className="cr-tag">{r.type === "nav" ? "page" : "file"}</span>
+              <span className="cr-tag">
+                {r.type === "nav" ? "page" : "file"}
+              </span>
             </button>
           ))}
         </div>

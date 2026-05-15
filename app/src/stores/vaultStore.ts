@@ -131,7 +131,10 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     try {
       await ipc.deletePath(path);
       const active = get().activeFile;
-      if (active && (active.path === path || active.path.startsWith(`${path}/`))) {
+      if (
+        active &&
+        (active.path === path || active.path.startsWith(`${path}/`))
+      ) {
         set({ activeFile: null });
       }
       await get().refreshTree();

@@ -27,16 +27,14 @@ export async function complete(args: CompleteArgs): Promise<string> {
     const system = args.messages.find((m) => m.role === "system");
     const userTurns = args.messages
       .filter((m) => m.role !== "system")
-      .map((m) => (m.role === "assistant" ? `Assistant: ${m.content}` : m.content))
+      .map((m) =>
+        m.role === "assistant" ? `Assistant: ${m.content}` : m.content,
+      )
       .join("\n\n");
-    const prompt = system
-      ? `${system.content}\n\n${userTurns}`
-      : userTurns;
+    const prompt = system ? `${system.content}\n\n${userTurns}` : userTurns;
     const res = await ipc.claudeRun(prompt, args.cwd);
     if (res.status !== 0) {
-      throw new Error(
-        res.stderr.trim() || `claude exit ${res.status}`,
-      );
+      throw new Error(res.stderr.trim() || `claude exit ${res.status}`);
     }
     return res.stdout.trim();
   }

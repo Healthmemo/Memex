@@ -25,8 +25,7 @@ pub struct OllamaStatus {
 }
 
 fn endpoint() -> String {
-    std::env::var("MEMEX_OLLAMA_URL")
-        .unwrap_or_else(|_| "http://localhost:11434".to_string())
+    std::env::var("MEMEX_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string())
 }
 
 fn locate_binary() -> (bool, Option<String>) {
@@ -125,4 +124,52 @@ pub async fn check() -> OllamaStatus {
 /// Returns the platform-specific URL the user should visit to install Ollama.
 pub fn install_url() -> &'static str {
     "https://ollama.com/download"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn install_url_is_https() {
+        let url = install_url();
+        assert!(url.starts_with("https://"), "install URL must be https");
+        assert!(url.contains("ollama.com"));
+    }
+
+    #[test]
+    fn endpoint_defaults_to_localhost() {
+        // Snapshot then restore so we don't pollute env for other tests.
+        let prev = std::env::var("MEMEX_OLLAMA_URL").ok();
+        // SAFETY: tests are single-threaded by default for env mutation.
+        unsafe {
+            std::env::remove_var("MEMEX_OLLAMA_URL");
+        }
+        let url = endpoint();
+        assert_eq!(url, "http://localhost:11434");
+        if let Some(v) = prev {
+            unsafe {
+                std::env::set_var("MEMEX_OLLAMA_URL", v);
+            }
+        }
+    }
+
+    #[test]
+    fn endpoint_respects_env_override() {
+        let prev = std::env::var("MEMEX_OLLAMA_URL").ok();
+        unsafe {
+            std::env::set_var("MEMEX_OLLAMA_URL", "http://example.test:1234");
+        }
+        let url = endpoint();
+        assert_eq!(url, "http://example.test:1234");
+        if let Some(v) = prev {
+            unsafe {
+                std::env::set_var("MEMEX_OLLAMA_URL", v);
+            }
+        } else {
+            unsafe {
+                std::env::remove_var("MEMEX_OLLAMA_URL");
+            }
+        }
+    }
 }

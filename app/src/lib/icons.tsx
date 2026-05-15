@@ -190,7 +190,9 @@ export function Icon({
         <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
       </>
     ),
-    cloud: <path d="M7 18a4 4 0 1 1 1.5-7.7A6 6 0 0 1 20 12a4 4 0 0 1-2 7.5z" />,
+    cloud: (
+      <path d="M7 18a4 4 0 1 1 1.5-7.7A6 6 0 0 1 20 12a4 4 0 0 1-2 7.5z" />
+    ),
     terminal: (
       <>
         <rect x="3" y="4" width="18" height="16" rx="2" />

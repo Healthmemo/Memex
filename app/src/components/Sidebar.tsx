@@ -62,9 +62,7 @@ export default function Sidebar({ t }: { t: Strings }): JSX.Element {
           <span className="proj-icon">
             {currentVault?.name?.charAt(0).toUpperCase() ?? "·"}
           </span>
-          <span className="proj-name">
-            {currentVault?.name ?? "No vault"}
-          </span>
+          <span className="proj-name">{currentVault?.name ?? "No vault"}</span>
           <span className="proj-meta">{totalFiles || ""}</span>
           <Icon name="chevD" size={12} />
         </button>
@@ -134,10 +132,7 @@ export default function Sidebar({ t }: { t: Strings }): JSX.Element {
             <NewPageButton parentDir={currentVault?.path ?? ""} />
           </div>
           {fileTree.length === 0 ? (
-            <div
-              className="muted"
-              style={{ padding: "8px", fontSize: 12.5 }}
-            >
+            <div className="muted" style={{ padding: "8px", fontSize: 12.5 }}>
               {currentVault ? "Empty vault" : "No vault selected"}
             </div>
           ) : (

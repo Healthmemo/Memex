@@ -42,10 +42,7 @@ export default function DialogHost(): JSX.Element | null {
         if (e.key === "Escape") close(null);
       }}
     >
-      <div
-        className="memex-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="memex-modal" onClick={(e) => e.stopPropagation()}>
         <h2 className="memex-modal__title">{request.title}</h2>
         {request.message ? (
           <p className="memex-modal__message">{request.message}</p>

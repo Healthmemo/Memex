@@ -107,7 +107,14 @@ export default function PageSettings({ t }: { t: Strings }): JSX.Element {
         <div className="page-eyebrow">{t.nav_settings}</div>
         <h1 className="page-title">{t.s_title}</h1>
       </header>
-      <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 32, marginTop: 16 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "200px 1fr",
+          gap: 32,
+          marginTop: 16,
+        }}
+      >
         <nav className="col" style={{ gap: 1 }}>
           {tabs.map((x) => (
             <button
@@ -126,7 +133,9 @@ export default function PageSettings({ t }: { t: Strings }): JSX.Element {
           {tab === "account" ? <SettingsAccount t={t} /> : null}
           {tab === "model" ? <SettingsModel t={t} /> : null}
           {tab === "providers" ? <SettingsProviders t={t} /> : null}
-          {tab === "lang" ? <SettingsLang t={t} lang={lang} setLang={setLang} /> : null}
+          {tab === "lang" ? (
+            <SettingsLang t={t} lang={lang} setLang={setLang} />
+          ) : null}
           {tab === "appearance" ? (
             <SettingsAppearance t={t} theme={theme} setTheme={setTheme} />
           ) : null}
@@ -142,7 +151,9 @@ function SettingsAccount({ t }: { t: Strings }): JSX.Element {
   const openVault = useVaultStore((s) => s.openVault);
   return (
     <div className="col" style={{ gap: 20 }}>
-      <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>{t.s_account}</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>
+        {t.s_account}
+      </h2>
       <div className="card row" style={{ gap: 14 }}>
         <div
           style={{
@@ -210,7 +221,9 @@ function SettingsModel({ t }: { t: Strings }): JSX.Element {
   return (
     <div className="col" style={{ gap: 20 }}>
       <div>
-        <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>{t.s_model}</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>
+          {t.s_model}
+        </h2>
         <p className="muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
           {t.s_model_lede}
         </p>
@@ -260,7 +273,11 @@ function ModelPicker({
     setModels(def.catalog ?? []);
     setError(null);
     // Try live list (ollama, openai, openrouter).
-    if (def.id === "ollama" || def.id === "openai-api" || def.id === "openrouter") {
+    if (
+      def.id === "ollama" ||
+      def.id === "openai-api" ||
+      def.id === "openrouter"
+    ) {
       setBusy(true);
       ipc
         .listProviderModels(def.id)
@@ -321,7 +338,9 @@ function ModelPicker({
         </div>
       ) : null}
       {error ? (
-        <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6 }}>{error}</div>
+        <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6 }}>
+          {error}
+        </div>
       ) : null}
     </div>
   );
@@ -348,7 +367,10 @@ function SettingsProviders({ t }: { t: Strings }): JSX.Element {
   }
 
   useEffect(() => {
-    ipc.claudeCheck().then(setCliStatus).catch(() => undefined);
+    ipc
+      .claudeCheck()
+      .then(setCliStatus)
+      .catch(() => undefined);
     refreshOllama();
   }, []);
 
@@ -421,7 +443,9 @@ function SettingsProviders({ t }: { t: Strings }): JSX.Element {
   return (
     <div className="col" style={{ gap: 20 }}>
       <div>
-        <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>{t.s_providers}</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>
+          {t.s_providers}
+        </h2>
         <p className="muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
           {t.s_providers_lede}
         </p>
@@ -436,7 +460,9 @@ function SettingsProviders({ t }: { t: Strings }): JSX.Element {
                   ollamaStatus.models.length > 0
                 : p.needsKey
                   ? hasKeys[p.id] === true
-                  : (settings?.providers[p.flag as keyof MemexSettings["providers"]] ?? false);
+                  : (settings?.providers[
+                      p.flag as keyof MemexSettings["providers"]
+                    ] ?? false);
           if (p.id === "ollama") {
             return (
               <div
@@ -467,7 +493,10 @@ function SettingsProviders({ t }: { t: Strings }): JSX.Element {
                 <div>
                   <div className="row" style={{ gap: 8, marginBottom: 4 }}>
                     <span style={{ fontWeight: 600 }}>{p.name}</span>
-                    <span className="chip" style={{ background: "var(--bg-soft)" }}>
+                    <span
+                      className="chip"
+                      style={{ background: "var(--bg-soft)" }}
+                    >
                       {p.kind}
                     </span>
                   </div>
@@ -520,7 +549,10 @@ function SettingsProviders({ t }: { t: Strings }): JSX.Element {
               <div>
                 <div className="row" style={{ gap: 8 }}>
                   <span style={{ fontWeight: 600 }}>{p.name}</span>
-                  <span className="chip" style={{ background: "var(--bg-soft)" }}>
+                  <span
+                    className="chip"
+                    style={{ background: "var(--bg-soft)" }}
+                  >
                     {p.kind}
                   </span>
                   {connected ? (
@@ -728,12 +760,20 @@ function SettingsAppearance({
   return (
     <div className="col" style={{ gap: 20 }}>
       <div>
-        <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>{t.s_appearance}</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>
+          {t.s_appearance}
+        </h2>
         <p className="muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
           {t.s_appearance_lede}
         </p>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 12,
+        }}
+      >
         {opts.map((o) => {
           const sel = theme === o.id;
           const isDark = o.id === "dark";
@@ -803,8 +843,18 @@ function SettingsAbout({ t }: { t: Strings }): JSX.Element {
   return (
     <div className="col" style={{ gap: 20 }}>
       <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>{t.s_about}</h2>
-      <div className="card" style={{ padding: 24, display: "flex", gap: 18, alignItems: "center" }}>
-        <span style={{ width: 64, height: 64, color: "var(--ink)", display: "block" }}>
+      <div
+        className="card"
+        style={{ padding: 24, display: "flex", gap: 18, alignItems: "center" }}
+      >
+        <span
+          style={{
+            width: 64,
+            height: 64,
+            color: "var(--ink)",
+            display: "block",
+          }}
+        >
           <svg width="64" height="64" viewBox="0 0 240 240">
             <g fill="currentColor">
               <rect x="70" y="40" width="20" height="40" />
@@ -821,11 +871,22 @@ function SettingsAbout({ t }: { t: Strings }): JSX.Element {
           </svg>
         </span>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em" }}>Memex</div>
+          <div
+            style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em" }}
+          >
+            Memex
+          </div>
           <div className="muted" style={{ fontSize: 13 }}>
             v0.2.0 · build 2026.05.13
           </div>
-          <p style={{ fontSize: 14, marginTop: 8, color: "var(--ink-2)", maxWidth: 520 }}>
+          <p
+            style={{
+              fontSize: 14,
+              marginTop: 8,
+              color: "var(--ink-2)",
+              maxWidth: 520,
+            }}
+          >
             {t.s_about_built}
           </p>
         </div>

@@ -264,7 +264,12 @@ async fn call_openai_compatible(
     let status = resp.status();
     let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
     if !status.is_success() {
-        return Err(format!("{} {}: {}", req.provider_id, status, String::from_utf8_lossy(&bytes)));
+        return Err(format!(
+            "{} {}: {}",
+            req.provider_id,
+            status,
+            String::from_utf8_lossy(&bytes)
+        ));
     }
     let parsed: OpenAIResponse =
         serde_json::from_slice(&bytes).map_err(|e| format!("openai parse: {e}"))?;
@@ -413,7 +418,11 @@ async fn call_google(
         .iter()
         .filter(|m| m.role != "system")
         .map(|m| GeminiContent {
-            role: if m.role == "assistant" { "model" } else { "user" },
+            role: if m.role == "assistant" {
+                "model"
+            } else {
+                "user"
+            },
             parts: vec![GeminiPart {
                 text: m.content.as_str(),
             }],
@@ -508,10 +517,7 @@ struct OllamaResponseMessage {
     content: Option<String>,
 }
 
-async fn call_ollama(
-    client: &reqwest::Client,
-    req: ChatRequest,
-) -> Result<ChatResponse, String> {
+async fn call_ollama(client: &reqwest::Client, req: ChatRequest) -> Result<ChatResponse, String> {
     let body = OllamaRequest {
         model: &req.model,
         messages: req
@@ -528,8 +534,8 @@ async fn call_ollama(
             num_predict: req.max_tokens,
         }),
     };
-    let endpoint = std::env::var("MEMEX_OLLAMA_URL")
-        .unwrap_or_else(|_| "http://localhost:11434".to_string());
+    let endpoint =
+        std::env::var("MEMEX_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
     let url = format!("{}/api/chat", endpoint.trim_end_matches('/'));
     let resp = client
         .post(&url)
@@ -548,10 +554,7 @@ async fn call_ollama(
     }
     let parsed: OllamaResponse =
         serde_json::from_slice(&bytes).map_err(|e| format!("ollama parse: {e}"))?;
-    let content = parsed
-        .message
-        .and_then(|m| m.content)
-        .unwrap_or_default();
+    let content = parsed.message.and_then(|m| m.content).unwrap_or_default();
     Ok(ChatResponse {
         provider_id: req.provider_id,
         model: req.model,
@@ -564,8 +567,8 @@ async fn call_ollama(
 }
 
 async fn list_ollama_models(client: &reqwest::Client) -> Result<Vec<String>, String> {
-    let endpoint = std::env::var("MEMEX_OLLAMA_URL")
-        .unwrap_or_else(|_| "http://localhost:11434".to_string());
+    let endpoint =
+        std::env::var("MEMEX_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
     let url = format!("{}/api/tags", endpoint.trim_end_matches('/'));
     let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
     if !resp.status().is_success() {

@@ -47,13 +47,23 @@ function SamplePage({ id }: { id: string }): JSX.Element {
             key={i}
             className="wikilink"
             onClick={() => setRoute(`page:sample/${wm[1]}`)}
-            style={{ background: "transparent", border: 0, color: "inherit", padding: 0 }}
+            style={{
+              background: "transparent",
+              border: 0,
+              color: "inherit",
+              padding: 0,
+            }}
           >
             {wm[2] ?? wm[1]}
           </button>
         );
       }
-      if (cm) return <span key={i} className="cite-pill">{cm[1]}</span>;
+      if (cm)
+        return (
+          <span key={i} className="cite-pill">
+            {cm[1]}
+          </span>
+        );
       const html = part
         .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
         .replace(/`([^`]+)`/g, "<code>$1</code>")
@@ -79,9 +89,12 @@ function SamplePage({ id }: { id: string }): JSX.Element {
       <div className="prose">
         {lines.map((line, i) => {
           if (!line.trim()) return <div key={i} style={{ height: 8 }}></div>;
-          if (line.startsWith("# ")) return <h1 key={i}>{renderInline(line.slice(2))}</h1>;
-          if (line.startsWith("## ")) return <h2 key={i}>{renderInline(line.slice(3))}</h2>;
-          if (line.startsWith("### ")) return <h3 key={i}>{renderInline(line.slice(4))}</h3>;
+          if (line.startsWith("# "))
+            return <h1 key={i}>{renderInline(line.slice(2))}</h1>;
+          if (line.startsWith("## "))
+            return <h2 key={i}>{renderInline(line.slice(3))}</h2>;
+          if (line.startsWith("### "))
+            return <h3 key={i}>{renderInline(line.slice(4))}</h3>;
           if (/^\d+\. /.test(line))
             return (
               <p key={i} style={{ paddingLeft: 16 }}>

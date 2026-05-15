@@ -71,8 +71,7 @@ export const useUIStore = create<UIState>()(
 
       setRoute: (route) => set({ route }),
       setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
-      toggleSidebar: () =>
-        set({ sidebarCollapsed: !get().sidebarCollapsed }),
+      toggleSidebar: () => set({ sidebarCollapsed: !get().sidebarCollapsed }),
       setCmdOpen: (v) => set({ cmdOpen: v }),
       toggleCmd: () => set({ cmdOpen: !get().cmdOpen }),
       setLang: (lang) => set({ lang }),

@@ -49,13 +49,11 @@ pub fn ensure_default_vault() -> Result<String, String> {
 }
 
 fn seed_vault(target: &Path) -> Result<(), String> {
-    std::fs::create_dir_all(target)
-        .map_err(|e| format!("create vault root: {e}"))?;
+    std::fs::create_dir_all(target).map_err(|e| format!("create vault root: {e}"))?;
     for sub in ["raw", "wiki", "daily", "ingest-reports"] {
         let p = target.join(sub);
         if !p.exists() {
-            std::fs::create_dir_all(&p)
-                .map_err(|e| format!("create {sub}: {e}"))?;
+            std::fs::create_dir_all(&p).map_err(|e| format!("create {sub}: {e}"))?;
         }
     }
     write_if_missing(&target.join("welcome.md"), WELCOME)?;
@@ -541,13 +539,36 @@ mod tests {
     fn rename_path_moves_within_parent() {
         let dir = temp_vault("ren");
         fs::write(dir.join("old.md"), "x").unwrap();
-        let new_path = rename_path(
-            dir.join("old.md").to_str().unwrap(),
-            "new.md",
-        )
-        .unwrap();
+        let new_path = rename_path(dir.join("old.md").to_str().unwrap(), "new.md").unwrap();
         assert!(std::path::Path::new(&new_path).exists());
         assert!(!dir.join("old.md").exists());
+    }
+
+    #[test]
+    fn seed_vault_creates_full_layout() {
+        let dir = temp_vault("seed");
+        seed_vault(&dir).unwrap();
+        for sub in ["raw", "wiki", "daily", "ingest-reports"] {
+            assert!(dir.join(sub).is_dir(), "missing {sub}/");
+        }
+        for file in ["welcome.md", "CLAUDE.md", "wiki/index.md", "wiki/log.md"] {
+            assert!(dir.join(file).is_file(), "missing {file}");
+        }
+    }
+
+    #[test]
+    fn seed_vault_preserves_existing_files() {
+        let dir = temp_vault("seed-preserve");
+        seed_vault(&dir).unwrap();
+        // User edits the welcome note.
+        fs::write(dir.join("welcome.md"), "user edits here\n").unwrap();
+        // Re-seed (e.g. on relaunch).
+        seed_vault(&dir).unwrap();
+        let contents = fs::read_to_string(dir.join("welcome.md")).unwrap();
+        assert_eq!(
+            contents, "user edits here\n",
+            "must not clobber user content"
+        );
     }
 
     #[test]

@@ -128,9 +128,7 @@ export default function PageGraph({ t }: { t: Strings }): JSX.Element {
                 key={tag}
                 type="button"
                 style={chipBtn(tagFilter === tag)}
-                onClick={() =>
-                  setTagFilter(tagFilter === tag ? null : tag)
-                }
+                onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
               >
                 #{tag}
               </button>
@@ -255,9 +253,10 @@ function collectTags(map: Record<string, string[]>): string[] {
 
 function collectFolders(
   root: string,
-  adjacency:
-    | { forward: Record<string, string[]>; tags: Record<string, string[]> }
-    | null,
+  adjacency: {
+    forward: Record<string, string[]>;
+    tags: Record<string, string[]>;
+  } | null,
 ): string[] {
   if (!adjacency || !root) return [];
   const trimmed = root.replace(/[\\/]+$/, "");

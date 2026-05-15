@@ -111,10 +111,7 @@ export default function PageQuery({ t }: { t: Strings }): JSX.Element {
         </button>
       </div>
       {settings ? (
-        <div
-          className="muted"
-          style={{ fontSize: 12, marginTop: 6 }}
-        >
+        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
           via {settings.query_provider} · {settings.query_model}
         </div>
       ) : null}

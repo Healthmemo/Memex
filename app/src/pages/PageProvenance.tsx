@@ -82,8 +82,7 @@ export default function PageProvenance({ t }: { t: Strings }): JSX.Element {
             onClick={() => void runLint()}
             disabled={!currentVault || lintBusy}
           >
-            <Icon name="check" size={14} />{" "}
-            {lintBusy ? "Linting…" : "Run lint"}
+            <Icon name="check" size={14} /> {lintBusy ? "Linting…" : "Run lint"}
           </button>
         </div>
       </header>

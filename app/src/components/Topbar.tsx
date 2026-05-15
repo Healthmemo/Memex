@@ -20,7 +20,10 @@ export default function Topbar({ t }: { t: Strings }): JSX.Element {
   const [claude, setClaude] = useState<ClaudeStatus | null>(null);
 
   useEffect(() => {
-    ipc.claudeCheck().then(setClaude).catch(() => undefined);
+    ipc
+      .claudeCheck()
+      .then(setClaude)
+      .catch(() => undefined);
   }, []);
 
   const projectName = currentVault?.name ?? t.app_name;
@@ -66,9 +69,7 @@ export default function Topbar({ t }: { t: Strings }): JSX.Element {
             background: claude?.installed ? "#16a34a" : "var(--ink-4)",
           }}
         ></span>
-        <span>
-          claude {claude?.installed ? "ready" : "offline"}
-        </span>
+        <span>claude {claude?.installed ? "ready" : "offline"}</span>
       </span>
       <select
         className="pill"
@@ -89,13 +90,19 @@ function breadcrumbFor(
   project: string,
   t: Strings,
 ): { crumb: string[]; icon: IconName } {
-  if (route === "overview") return { crumb: [project, t.nav_overview], icon: "home" };
-  if (route === "ingest") return { crumb: [project, t.nav_ingest], icon: "upload" };
+  if (route === "overview")
+    return { crumb: [project, t.nav_overview], icon: "home" };
+  if (route === "ingest")
+    return { crumb: [project, t.nav_ingest], icon: "upload" };
   if (route === "query") return { crumb: [project, t.nav_query], icon: "msg" };
-  if (route === "graph") return { crumb: [project, t.nav_graph], icon: "graph" };
-  if (route === "history") return { crumb: [project, t.nav_history], icon: "history" };
-  if (route === "provenance") return { crumb: [project, t.nav_provenance], icon: "quote" };
-  if (route === "settings") return { crumb: [t.nav_settings], icon: "settings" };
+  if (route === "graph")
+    return { crumb: [project, t.nav_graph], icon: "graph" };
+  if (route === "history")
+    return { crumb: [project, t.nav_history], icon: "history" };
+  if (route === "provenance")
+    return { crumb: [project, t.nav_provenance], icon: "quote" };
+  if (route === "settings")
+    return { crumb: [t.nav_settings], icon: "settings" };
   if (route.startsWith("page:")) {
     const path = route.slice(5);
     const name = path.split(/[\\/]/).pop() ?? path;

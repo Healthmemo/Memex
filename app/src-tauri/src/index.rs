@@ -28,15 +28,13 @@ pub fn build_link_graph(root: &str) -> Result<Adjacency, String> {
 
     let mut adj = Adjacency::default();
     for file in &files {
-        let raw =
-            std::fs::read_to_string(file).map_err(|e| format!("read {file:?}: {e}"))?;
+        let raw = std::fs::read_to_string(file).map_err(|e| format!("read {file:?}: {e}"))?;
         ingest_links(file, &raw, &stems, &mut adj);
         ingest_tags(file, &raw, &mut adj);
     }
 
     let cache_dir = root_path.join(".memex");
-    std::fs::create_dir_all(&cache_dir)
-        .map_err(|e| format!("create cache dir failed: {e}"))?;
+    std::fs::create_dir_all(&cache_dir).map_err(|e| format!("create cache dir failed: {e}"))?;
     write_cache(&cache_dir.join("cache.db"), &adj)
         .map_err(|e| format!("cache write failed: {e}"))?;
 
@@ -65,9 +63,8 @@ fn collect_markdown(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
 }
 
 fn is_hidden_name(name: &std::ffi::OsStr) -> bool {
-    name.to_str().is_some_and(|s| {
-        s.starts_with('.') || s == "node_modules" || s == "target"
-    })
+    name.to_str()
+        .is_some_and(|s| s.starts_with('.') || s == "node_modules" || s == "target")
 }
 
 fn build_stem_index(files: &[PathBuf]) -> HashMap<String, PathBuf> {
@@ -80,12 +77,7 @@ fn build_stem_index(files: &[PathBuf]) -> HashMap<String, PathBuf> {
     idx
 }
 
-fn ingest_links(
-    file: &Path,
-    text: &str,
-    stems: &HashMap<String, PathBuf>,
-    adj: &mut Adjacency,
-) {
+fn ingest_links(file: &Path, text: &str, stems: &HashMap<String, PathBuf>, adj: &mut Adjacency) {
     let source = file.to_string_lossy().into_owned();
     for target in parser::parse_links_from_text(text) {
         match stems.get(&target.to_lowercase()) {
@@ -124,8 +116,7 @@ fn ingest_tags(file: &Path, text: &str, adj: &mut Adjacency) {
     if tags.is_empty() {
         return;
     }
-    adj.tags
-        .insert(file.to_string_lossy().into_owned(), tags);
+    adj.tags.insert(file.to_string_lossy().into_owned(), tags);
 }
 
 fn extract_tags(pod: &gray_matter::Pod) -> Option<Vec<String>> {

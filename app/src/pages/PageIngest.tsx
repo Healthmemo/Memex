@@ -72,9 +72,7 @@ export default function PageIngest({ t }: { t: Strings }): JSX.Element {
       const out = await complete({
         task: "ingest",
         cwd: currentVault.path,
-        messages: [
-          { role: "user", content: INGEST_PROMPT(slug, finalTitle) },
-        ],
+        messages: [{ role: "user", content: INGEST_PROMPT(slug, finalTitle) }],
       });
       setLog((l) => `${l}\n\n${out}`);
       await refreshTree();
@@ -172,7 +170,9 @@ export default function PageIngest({ t }: { t: Strings }): JSX.Element {
               className="btn btn-primary"
               style={{ marginLeft: "auto" }}
               onClick={() => void run()}
-              disabled={!canRun || stage === "claude" || stage === "writing-raw"}
+              disabled={
+                !canRun || stage === "claude" || stage === "writing-raw"
+              }
             >
               <Icon name="sparkles" size={14} />{" "}
               {stage === "claude" || stage === "writing-raw"

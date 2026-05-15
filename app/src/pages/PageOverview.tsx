@@ -31,7 +31,10 @@ export default function PageOverview({ t }: { t: Strings }): JSX.Element {
       ? Object.values(adjacency.forward).reduce((s, arr) => s + arr.length, 0)
       : 0;
     const unresolved = adjacency
-      ? Object.values(adjacency.unresolved).reduce((s, arr) => s + arr.length, 0)
+      ? Object.values(adjacency.unresolved).reduce(
+          (s, arr) => s + arr.length,
+          0,
+        )
       : 0;
     const total = links + unresolved;
     const resolvedRatio = total > 0 ? links / total : 0;
@@ -149,16 +152,11 @@ export default function PageOverview({ t }: { t: Strings }): JSX.Element {
               <span className="ic">
                 <Icon name="save" size={14} />
               </span>
-              <span
-                style={{ display: "flex", alignItems: "center", gap: 8 }}
-              >
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontWeight: 500 }}>{c.subject}</span>
               </span>
               <span className="meta">{c.date}</span>
-              <span
-                className="meta"
-                style={{ fontFamily: "var(--font-mono)" }}
-              >
+              <span className="meta" style={{ fontFamily: "var(--font-mono)" }}>
                 {c.hash}
               </span>
             </div>

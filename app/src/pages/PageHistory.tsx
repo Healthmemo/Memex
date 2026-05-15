@@ -113,7 +113,10 @@ export default function PageHistory({ t }: { t: Strings }): JSX.Element {
                   {h.created > 0 ? (
                     <span
                       className="chip"
-                      style={{ background: "transparent", color: "var(--c-entity)" }}
+                      style={{
+                        background: "transparent",
+                        color: "var(--c-entity)",
+                      }}
                     >
                       +{h.created}
                     </span>
@@ -121,7 +124,10 @@ export default function PageHistory({ t }: { t: Strings }): JSX.Element {
                   {h.modified > 0 ? (
                     <span
                       className="chip"
-                      style={{ background: "transparent", color: "var(--c-source)" }}
+                      style={{
+                        background: "transparent",
+                        color: "var(--c-source)",
+                      }}
                     >
                       ~{h.modified} files
                     </span>

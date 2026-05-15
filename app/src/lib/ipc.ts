@@ -137,7 +137,8 @@ export const ipc = {
   hasProviderKey: (providerId: string) =>
     invoke<boolean>("has_provider_key", { providerId }),
   getSettings: () => invoke<MemexSettings>("get_settings"),
-  setSettings: (value: MemexSettings) => invoke<null>("set_settings", { value }),
+  setSettings: (value: MemexSettings) =>
+    invoke<null>("set_settings", { value }),
   chatComplete: (request: ChatRequest) =>
     invoke<ChatResponse>("chat_complete", { request }),
   listProviderModels: (providerId: string) =>
