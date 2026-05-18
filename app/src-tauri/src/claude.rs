@@ -65,9 +65,19 @@ pub fn run_prompt(prompt: &str, cwd: &str) -> Result<CliResult, String> {
     if !dir.is_dir() {
         return Err(format!("cwd is not a directory: {cwd}"));
     }
-    // Use --print so the CLI exits after producing output (non-interactive).
+    // --print so the CLI exits after producing output (non-interactive).
+    // --allowedTools so Claude can actually edit the vault Memex spawned
+    // it on — without this, every Write/Edit in an ingest workflow gets
+    // silently denied in --print mode. The user installed Memex with the
+    // intent of letting it maintain the vault, so we pre-authorize the
+    // tools that the Ingest / Lint prompts need. MEMEX_CLAUDE_TOOLS env
+    // var overrides if a user wants a tighter set.
+    let allowed = std::env::var("MEMEX_CLAUDE_TOOLS")
+        .unwrap_or_else(|_| "Read,Write,Edit,Glob,Grep,Bash".to_string());
     let mut child = Command::new(&path)
         .arg("--print")
+        .arg("--allowedTools")
+        .arg(&allowed)
         .current_dir(dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
