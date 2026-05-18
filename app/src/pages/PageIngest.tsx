@@ -138,12 +138,16 @@ export default function PageIngest({ t }: { t: Strings }): JSX.Element {
 
   async function browseAndLoad(): Promise<void> {
     setDropError(null);
-    const path = await ipc.pickTextFile();
-    if (!path) return;
-    if (!title) {
-      const base = path.split(/[\\/]/).pop() ?? "";
-      setTitle(base.replace(/\.[^.]+$/, ""));
+    let path: string | null = null;
+    try {
+      path = await ipc.pickTextFile();
+    } catch (err) {
+      setDropError(`File picker failed: ${String(err)}`);
+      return;
     }
+    if (!path) return;
+    const base = path.split(/[\\/]/).pop() ?? "";
+    setTitle((prev) => prev || base.replace(/\.[^.]+$/, ""));
     try {
       const text = await ipc.readExternalText(path);
       setBody(text);

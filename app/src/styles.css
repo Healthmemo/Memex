@@ -120,8 +120,13 @@ select {
   min-height: 100vh;
   background: var(--bg);
 }
+/* When sidebar is collapsed it gets pulled out of flow (position: absolute)
+   so main becomes the only grid child. We must collapse the template to a
+   single 1fr column — otherwise main auto-places into the first declared
+   column (which we previously left at 0) and the workspace renders 0-wide,
+   forcing every character of the title onto its own line. */
 .app.sidebar-collapsed {
-  grid-template-columns: 0 1fr;
+  grid-template-columns: 1fr;
 }
 .app.sidebar-collapsed .sidebar {
   transform: translateX(-100%);
