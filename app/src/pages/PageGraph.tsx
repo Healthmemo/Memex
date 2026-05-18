@@ -11,19 +11,17 @@ import type { Strings } from "../lib/i18n";
 import { useUIStore } from "../stores/uiStore";
 import { useVaultStore } from "../stores/vaultStore";
 
+// Obsidian's graph view uses a deliberately monochrome palette: every
+// node is the same shade and structure comes from degree-driven sizing
+// + a force layout, not from colour. We mirror that.
 interface ThemeColors {
   bg: string;
+  node: string;
+  nodeUnresolved: string;
   ink: string;
-  inkSoft: string;
   edge: string;
   edgeHi: string;
   accent: string;
-  source: string;
-  entity: string;
-  concept: string;
-  technique: string;
-  analysis: string;
-  other: string;
 }
 
 function readThemeColors(): ThemeColors {
@@ -33,31 +31,15 @@ function readThemeColors(): ThemeColors {
   return {
     bg: cs.getPropertyValue("--bg").trim() || (dark ? "#0f1115" : "#fafaf9"),
     ink: cs.getPropertyValue("--ink").trim() || (dark ? "#e6e8eb" : "#111418"),
-    inkSoft:
-      cs.getPropertyValue("--ink-3").trim() || (dark ? "#8b9099" : "#6b7280"),
-    edge: dark ? "rgba(220, 224, 230, 0.18)" : "rgba(30, 35, 45, 0.14)",
-    edgeHi: dark ? "rgba(220, 224, 230, 0.55)" : "rgba(30, 35, 45, 0.45)",
+    node: dark ? "#c8c8c8" : "#3a3f47",
+    // Wikilinks pointing at pages that don't exist yet — Obsidian
+    // greys these out further so unresolved targets are visually quiet.
+    nodeUnresolved: dark ? "#6e7079" : "#9aa0a8",
+    edge: dark ? "rgba(220, 224, 230, 0.18)" : "rgba(30, 35, 45, 0.16)",
+    edgeHi: dark ? "rgba(220, 224, 230, 0.6)" : "rgba(30, 35, 45, 0.5)",
     accent:
       cs.getPropertyValue("--accent").trim() || (dark ? "#7aa7ff" : "#3b82f6"),
-    source: "#f59e0b",
-    entity: "#8b5cf6",
-    concept: "#3b82f6",
-    technique: "#10b981",
-    analysis: "#ef4444",
-    other: dark ? "#7a8290" : "#9ca3af",
   };
-}
-
-function nodeColorForPath(path: string, c: ThemeColors): string {
-  const name = path.split(/[\\/]/).pop()?.toLowerCase() ?? "";
-  if (name.startsWith("source-")) return c.source;
-  const parent = path.split(/[\\/]/).slice(-2, -1)[0]?.toLowerCase() ?? "";
-  if (parent === "entities") return c.entity;
-  if (parent === "concepts") return c.concept;
-  if (parent === "techniques") return c.technique;
-  if (parent === "analyses") return c.analysis;
-  if (parent === "raw") return c.other;
-  return c.concept;
 }
 
 let layoutRegistered = false;
@@ -75,6 +57,10 @@ export default function PageGraph({ t }: { t: Strings }): JSX.Element {
   const setRoute = useUIStore((s) => s.setRoute);
   const theme = useUIStore((s) => s.theme);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const cyRef = useRef<{
+    zoomBy: (factor: number) => void;
+    fit: () => void;
+  } | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [folderFilter, setFolderFilter] = useState<string | null>(null);
 
@@ -105,19 +91,51 @@ export default function PageGraph({ t }: { t: Strings }): JSX.Element {
       layout: {
         name: "fcose",
         animate: false,
+        randomize: true,
         fit: true,
-        padding: 50,
-        nodeSeparation: 180,
-        idealEdgeLength: 160,
-        nodeRepulsion: 14000,
-        gravity: 0.18,
-        gravityRange: 3.0,
-        numIter: 2500,
+        padding: 60,
+        // Tuned to reproduce Obsidian's hub-and-spoke cluster look —
+        // leaves get pushed out into petals, hubs settle into the
+        // centre of their cluster, and unrelated clusters drift apart.
+        nodeSeparation: 220,
+        idealEdgeLength: 90,
+        edgeElasticity: 0.1,
+        nodeRepulsion: 22000,
+        gravity: 0.08,
+        gravityRange: 4.5,
+        gravityCompound: 1.0,
+        nestingFactor: 0.1,
+        numIter: 3500,
+        tile: false,
       } as unknown as cytoscape.LayoutOptions,
       wheelSensitivity: 0.2,
       minZoom: 0.1,
       maxZoom: 4,
     });
+
+    // Obsidian shows labels only when you zoom past a threshold so the
+    // overview stays clean. We reproduce that — labels stay invisible
+    // until the user zooms in (or hovers).
+    const LABEL_ZOOM_THRESHOLD = 0.9;
+    const applyLabelVisibility = (): void => {
+      const visible = cy.zoom() >= LABEL_ZOOM_THRESHOLD;
+      cy.batch(() => {
+        cy.nodes().forEach((n) => {
+          if (visible) n.addClass("labels-on");
+          else n.removeClass("labels-on");
+        });
+      });
+    };
+    cy.on("zoom", applyLabelVisibility);
+
+    const zoomBy = (factor: number): void => {
+      const center = {
+        x: cy.width() / 2,
+        y: cy.height() / 2,
+      };
+      cy.zoom({ level: cy.zoom() * factor, renderedPosition: center });
+    };
+    cyRef.current = { zoomBy, fit: () => cy.fit(undefined, 60) };
 
     cy.on("tap", "node", (event) => {
       const path = event.target.id();
@@ -136,7 +154,8 @@ export default function PageGraph({ t }: { t: Strings }): JSX.Element {
     });
 
     cy.ready(() => {
-      cy.fit(undefined, 40);
+      cy.fit(undefined, 60);
+      applyLabelVisibility();
     });
     return () => {
       cy.destroy();
@@ -225,6 +244,38 @@ export default function PageGraph({ t }: { t: Strings }): JSX.Element {
               ))}
             </select>
           ) : null}
+          <div
+            style={{
+              display: "flex",
+              gap: 4,
+              marginLeft: folders.length > 0 ? 0 : "auto",
+            }}
+          >
+            <button
+              type="button"
+              style={chipBtn(false)}
+              onClick={() => cyRef.current?.zoomBy(0.7)}
+              aria-label="Zoom out"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              style={chipBtn(false)}
+              onClick={() => cyRef.current?.fit()}
+              aria-label="Fit"
+            >
+              fit
+            </button>
+            <button
+              type="button"
+              style={chipBtn(false)}
+              onClick={() => cyRef.current?.zoomBy(1.4)}
+              aria-label="Zoom in"
+            >
+              +
+            </button>
+          </div>
         </div>
         {nodeCount === 0 ? (
           <p className="muted" style={{ padding: 40, textAlign: "center" }}>
@@ -238,7 +289,8 @@ export default function PageGraph({ t }: { t: Strings }): JSX.Element {
           <div
             ref={containerRef}
             style={{
-              height: 560,
+              height: "calc(100vh - 280px)",
+              minHeight: 520,
               width: "100%",
               background: "var(--bg)",
             }}
@@ -301,6 +353,11 @@ function buildElements(
   const nodes = new Set<string>();
   const edges: ElementDefinition[] = [];
   const degree = new Map<string, number>();
+  // A node is "resolved" if it appears as a source of any outgoing
+  // edge (= we crawled it as a real file). Targets that only appear
+  // as wikilink destinations and never as sources are unresolved
+  // stubs (Obsidian-style ghost nodes).
+  const resolved = new Set<string>(Object.keys(adjacency.forward));
   for (const [source, targets] of Object.entries(adjacency.forward)) {
     if (!allowed.has(source)) continue;
     nodes.add(source);
@@ -314,20 +371,21 @@ function buildElements(
       });
     }
   }
-  const colors = readThemeColors();
   return [
     ...Array.from(nodes).map((p) => {
       const deg = degree.get(p) ?? 0;
-      // Obsidian-style: size scales with degree but stays in a readable
-      // range (16-44px). Lone nodes still show up clearly.
-      const size = Math.min(44, 16 + Math.sqrt(deg) * 8);
+      // Obsidian-style sizing: dramatic range so hubs visually
+      // dominate the way they do in the reference screenshot.
+      // Leaves are tiny (6px), big hubs grow up to ~60px.
+      const size = Math.max(6, Math.min(60, 6 + Math.sqrt(deg) * 7));
       return {
         data: {
           id: p,
           label: stem(p),
-          color: nodeColorForPath(p, colors),
           size,
+          unresolved: resolved.has(p) ? 0 : 1,
         },
+        classes: resolved.has(p) ? "resolved" : "unresolved",
       };
     }),
     ...edges,
@@ -385,32 +443,43 @@ function makeStyle(c: ThemeColors): StylesheetCSS[] {
     {
       selector: "node",
       css: {
-        "background-color": "data(color)",
+        "background-color": c.node,
         label: "data(label)",
         color: c.ink,
-        "font-size": 12,
-        "font-weight": 500,
+        "font-size": 10,
+        "font-weight": 400,
         "text-valign": "bottom",
         "text-halign": "center",
-        "text-margin-y": 6,
-        "text-outline-width": 2,
+        "text-margin-y": 4,
+        "text-outline-width": 1.5,
         "text-outline-color": c.bg,
         "text-outline-opacity": 1,
         "text-wrap": "ellipsis",
-        "text-max-width": "120px",
+        "text-max-width": "140px",
+        // Hide labels by default — zoom listener flips this on/off so
+        // a zoomed-out view stays clean like Obsidian's.
+        "text-opacity": 0,
         width: "data(size)",
         height: "data(size)",
         "border-width": 0,
-        "transition-property": "opacity, background-color, border-width",
+        "transition-property": "opacity, text-opacity, border-width",
         "transition-duration": 120,
+      },
+    },
+    {
+      selector: "node.unresolved",
+      css: {
+        "background-color": c.nodeUnresolved,
+        "background-opacity": 0.7,
       },
     },
     {
       selector: "edge",
       css: {
         "line-color": c.edge,
-        "curve-style": "bezier",
-        width: 1.5,
+        "curve-style": "haystack",
+        "haystack-radius": 0,
+        width: 0.6,
         "transition-property": "line-color, opacity, width",
         "transition-duration": 120,
       },
@@ -418,8 +487,9 @@ function makeStyle(c: ThemeColors): StylesheetCSS[] {
     {
       selector: "node.highlight",
       css: {
-        "border-width": 3,
+        "border-width": 2,
         "border-color": c.ink,
+        "text-opacity": 1,
         color: c.ink,
       },
     },
@@ -427,20 +497,27 @@ function makeStyle(c: ThemeColors): StylesheetCSS[] {
       selector: "edge.highlight",
       css: {
         "line-color": c.edgeHi,
-        width: 2.5,
+        width: 1.2,
       },
     },
     {
       selector: ".dimmed",
       css: {
-        opacity: 0.18,
+        opacity: 0.15,
       },
     },
     {
       selector: "node:selected",
       css: {
-        "border-width": 3,
+        "border-width": 2,
         "border-color": c.accent,
+        "text-opacity": 1,
+      },
+    },
+    {
+      selector: "node.labels-on",
+      css: {
+        "text-opacity": 1,
       },
     },
   ];
